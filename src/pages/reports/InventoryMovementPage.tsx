@@ -6,7 +6,7 @@ import {
   Empty,
   Flex,
   Grid,
-  Input,
+ 
   Pagination,
   Row,
   Select,
@@ -16,8 +16,8 @@ import {
   Typography,
 } from 'antd';
 import type { ColumnsType, TableProps } from 'antd/es/table';
-import { Search as SearchIcon } from 'lucide-react';
-import dayjs, { type Dayjs } from 'dayjs';
+
+import  { type Dayjs } from 'dayjs';
 import { ReportShell } from '@/components/reports/ReportShell';
 import { KpiCard } from '@/components/reports/KpiCard';
 import { useInventoryMovement } from '@/hooks/queries/useReports';

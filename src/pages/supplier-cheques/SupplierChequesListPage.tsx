@@ -17,7 +17,7 @@ import {
   Table,
   Tag,
   Typography,
-  App,
+ 
 } from 'antd';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import {
@@ -58,7 +58,7 @@ const STATUS_COLOR: Record<SupplierChequeStatus, string> = {
 };
 
 export function SupplierChequesListPage() {
-  const { modal } = App.useApp();
+  // const { modal } = App.useApp();
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 

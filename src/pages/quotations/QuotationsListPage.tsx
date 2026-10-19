@@ -19,7 +19,7 @@ import {
 } from 'antd';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import { Plus, Search as SearchIcon, Eye } from 'lucide-react';
-import dayjs, { type Dayjs } from 'dayjs';
+import { type Dayjs } from 'dayjs';
 import { Link } from 'react-router-dom';
 import { useQuotations } from '@/hooks/queries/useQuotations';
 import { useCustomersLookup } from '@/hooks/queries/useCustomersLookup';

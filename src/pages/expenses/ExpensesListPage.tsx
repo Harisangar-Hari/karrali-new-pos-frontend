@@ -27,7 +27,7 @@ import {
   Landmark,
   Wallet,
 } from 'lucide-react';
-import dayjs, { type Dayjs } from 'dayjs';
+import  { type Dayjs } from 'dayjs';
 import {
   useDeleteExpense,
   useExpenses,

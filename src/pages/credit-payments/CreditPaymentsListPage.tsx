@@ -10,7 +10,6 @@ import {
   Pagination,
   Row,
   Select,
-  Space,
   Switch,
   Table,
   Tag,
@@ -27,10 +26,10 @@ import {
   RotateCcw,
   Undo2,
 } from 'lucide-react';
-import dayjs, { type Dayjs } from 'dayjs';
+import  { type Dayjs } from 'dayjs';
 import {
   useCreditPayments,
-  useReverseCreditPayment, // not used here, but the reverse modal handles it
+   // not used here, but the reverse modal handles it
 } from '@/hooks/queries/useCreditPayments';
 import { useCustomersLookup } from '@/hooks/queries/useCustomersLookup';
 import { usePermission } from '@/hooks/usePermission';

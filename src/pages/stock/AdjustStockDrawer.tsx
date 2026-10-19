@@ -22,7 +22,7 @@ import { useAdjustStock, useProductStock } from '@/hooks/queries/useStock';
 import { useProducts } from '@/hooks/queries/useProducts';
 import { useWarehousesLookup } from '@/hooks/queries/useLookups';
 import { getErrorMessage } from '@/lib/api';
-import { formatQty, formatDateTime } from '@/lib/format';
+import { formatQty,  } from '@/lib/format';
 
 const { useBreakpoint } = Grid;
 

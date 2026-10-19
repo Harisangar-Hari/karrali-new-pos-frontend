@@ -10,14 +10,12 @@ import {
   Pagination,
   Row,
   Select,
-  Space,
   Table,
   Tag,
   Typography,
-  App,
+  
   Empty,
   Spin,
-  Tooltip,
   Dropdown,
   Segmented,
 } from 'antd';
@@ -63,7 +61,7 @@ const STATUS_COLOR: Record<CustomerChequeStatus, string> = {
 };
 
 export function CustomerChequesListPage() {
-  const { modal } = App.useApp();
+  
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 

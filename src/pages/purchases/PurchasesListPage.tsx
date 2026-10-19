@@ -16,7 +16,7 @@ import {
   Table,
   Tag,
   Typography,
-  App,
+  
 } from 'antd';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import {
@@ -25,8 +25,8 @@ import {
   Eye,
   XCircle,
 } from 'lucide-react';
-import dayjs, { type Dayjs } from 'dayjs';
-import { Link, useNavigate } from 'react-router-dom';
+import  { type Dayjs } from 'dayjs';
+import { Link, } from 'react-router-dom';
 import {
   usePurchases,
 } from '@/hooks/queries/usePurchases';
@@ -48,7 +48,7 @@ const { RangePicker } = DatePicker;
 const DEFAULT_PAGE_SIZE = 20;
 
 export function PurchasesListPage() {
-  const navigate = useNavigate();
+ 
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 

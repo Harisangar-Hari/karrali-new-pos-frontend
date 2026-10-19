@@ -7,7 +7,6 @@ import {
   Button,
   Flex,
   Grid,
-  Typography,
   App,
   Alert,
 } from 'antd';

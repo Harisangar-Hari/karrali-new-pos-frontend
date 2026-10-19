@@ -17,7 +17,7 @@ import {
 } from 'antd';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import { Eye } from 'lucide-react';
-import dayjs, { type Dayjs } from 'dayjs';
+import { type Dayjs } from 'dayjs';
 import { usePurchases } from '@/hooks/queries/usePurchases';
 import { PurchaseDetailDrawer } from '@/pages/purchases/PurchaseDetailDrawer';
 import { formatMoney, formatDate } from '@/lib/format';

@@ -5,7 +5,7 @@ import {
   Divider,
   Empty,
   Flex,
-  Grid,
+
   Row,
   Skeleton,
   Tag,
@@ -41,7 +41,7 @@ import { useSales } from '@/hooks/queries/useSales';
 import { formatMoney, formatDateTime } from '@/lib/format';
 import type { SalePaymentMethod } from '@/types/sale';
 
-const { useBreakpoint } = Grid;
+
 
 const TILE_COL = { xs: 12, sm: 12, md: 6, lg: 6 } as const;
 
@@ -164,8 +164,7 @@ function QuickAction({ label, icon, onClick, disabled }: QuickActionProps) {
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
+  
 
   const user = useAuthStore((s) => s.user);
   const canCreateSale = usePermission('sales.create');

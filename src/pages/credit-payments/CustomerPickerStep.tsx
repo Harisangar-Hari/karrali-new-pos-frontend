@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Flex, Input, Typography, Empty, Spin } from 'antd';
-import { Search as SearchIcon, User, Phone } from 'lucide-react';
+import { Search as SearchIcon, User } from 'lucide-react';
 import { useCustomers } from '@/hooks/queries/useCustomers';
 import { formatMoney } from '@/lib/format';
 

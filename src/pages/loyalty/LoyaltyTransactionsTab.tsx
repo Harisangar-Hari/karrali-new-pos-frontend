@@ -7,7 +7,7 @@ import {
   Empty,
   Flex,
   Grid,
-  Input,
+
   Pagination,
   Row,
   Select,
@@ -17,8 +17,8 @@ import {
   Typography,
 } from 'antd';
 import type { ColumnsType, TableProps } from 'antd/es/table';
-import { Search as SearchIcon } from 'lucide-react';
-import dayjs, { type Dayjs } from 'dayjs';
+
+import  { type Dayjs } from 'dayjs';
 import { useLoyaltyTransactions } from '@/hooks/queries/useLoyalty';
 import { useCustomersLookup } from '@/hooks/queries/useCustomersLookup';
 import { formatDateTime } from '@/lib/format';

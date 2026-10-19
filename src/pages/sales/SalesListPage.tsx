@@ -16,20 +16,20 @@ import {
   Table,
   Tag,
   Typography,
-  App,
+  
 } from 'antd';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import {
   Search as SearchIcon,
   Eye,
-  XCircle,
+
   Gift,
 } from 'lucide-react';
-import dayjs, { type Dayjs } from 'dayjs';
+import  { type Dayjs } from 'dayjs';
 import { useSales } from '@/hooks/queries/useSales';
 import { useCustomersLookup } from '@/hooks/queries/useCustomersLookup';
 import { useTerminalsLookup } from '@/hooks/queries/useTerminalsLookup';
-import { usePermission } from '@/hooks/usePermission';
+
 import { SaleDetailDrawer } from './SaleDetailDrawer';
 import { formatMoney, formatDateTime } from '@/lib/format';
 import type {
@@ -50,11 +50,11 @@ const STATUS_COLOR: Record<SaleStatus, string> = {
 };
 
 export function SalesListPage() {
-  const { message } = App.useApp();
+  // const { message } = App.useApp();
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
-  const canVoid = usePermission('sales.void');
+  // const canVoid = usePermission('sales.void');
 
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');

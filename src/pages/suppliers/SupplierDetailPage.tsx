@@ -28,7 +28,7 @@ import {
   useSupplier,
 } from '@/hooks/queries/useSuppliers';
 import { usePurchases } from '@/hooks/queries/usePurchases';
-import { useSupplierPayments } from '@/hooks/queries/useSupplierPayments';
+
 import { useSupplierCheques } from '@/hooks/queries/useSupplierCheques';
 import { usePermission } from '@/hooks/usePermission';
 import { SupplierFormDrawer } from './SupplierFormDrawer';

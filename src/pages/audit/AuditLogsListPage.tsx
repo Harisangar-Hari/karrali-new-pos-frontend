@@ -25,7 +25,7 @@ import {
   FileText,
   Wrench,
 } from 'lucide-react';
-import dayjs, { type Dayjs } from 'dayjs';
+import  { type Dayjs } from 'dayjs';
 import { useAuditLogs } from '@/hooks/queries/useAuditLogs';
 import { useUsers } from '@/hooks/queries/useUsers';
 import { AuditLogDetailDrawer } from './AuditLogDetailDrawer';

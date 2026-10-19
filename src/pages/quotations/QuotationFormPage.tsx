@@ -70,12 +70,12 @@ const LABEL_STYLE: React.CSSProperties = {
   fontSize: 13,
   color: 'rgba(0,0,0,0.88)',
 };
-const ERR_STYLE: React.CSSProperties = {
-  color: '#ff4d4f',
-  fontSize: 12,
-  marginTop: 4,
-  minHeight: 16,
-};
+// const ERR_STYLE: React.CSSProperties = {
+//   color: '#ff4d4f',
+//   fontSize: 12,
+//   marginTop: 4,
+//   minHeight: 16,
+// };
 
 let lineCounter = 0;
 function newKey() {

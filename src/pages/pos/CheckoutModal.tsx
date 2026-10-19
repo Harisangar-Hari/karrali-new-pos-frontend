@@ -69,7 +69,7 @@ export function CheckoutModal({
   open,
   total,
   session,
-  hasCustomer,
+ 
   onClose,
   onSuccess,
 }: Props) {

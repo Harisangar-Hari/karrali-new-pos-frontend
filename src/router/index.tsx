@@ -1,7 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { LoginPage } from '@/pages/LoginPage';
 import { DashboardPage } from '@/pages/DashboardPage';
-import { PlaceholderPage } from '@/pages/PlaceholderPage';
+
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { AppShell } from '@/layouts/AppShell';
 import { ProductsListPage } from '@/pages/products/ProductsListPage';

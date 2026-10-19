@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import {  useMemo, useState } from 'react';
 import {
   Button,
   Card,
@@ -6,28 +6,25 @@ import {
   DatePicker,
   Flex,
   Grid,
-  Input,
   Pagination,
   Row,
   Segmented,
   Select,
-  Space,
   Table,
   Tag,
   Typography,
-  App,
   Empty,
   Spin,
   Tooltip,
 } from 'antd';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import {
-  Search as SearchIcon,
+ 
   Eye,
   AlertTriangle,
   CheckCircle2,
 } from 'lucide-react';
-import dayjs, { type Dayjs } from 'dayjs';
+import  { type Dayjs } from 'dayjs';
 import { useCashSessions } from '@/hooks/queries/useCashSession';
 import { useTerminalsLookup } from '@/hooks/queries/useTerminalsLookup';
 import { CashSessionDetailDrawer } from './CashSessionDetailDrawer';
