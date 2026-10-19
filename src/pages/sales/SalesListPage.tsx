@@ -211,9 +211,31 @@ export function SalesListPage() {
               ? 'ascend'
               : 'descend'
             : null,
-        render: (v: string) => (
-          <Typography.Text strong>{formatMoney(v)}</Typography.Text>
-        ),
+        render: (_: unknown, row) => {
+          const total = Number(row.TotalAmount);
+          const refunded = Number(row.RefundedAmount);
+          const net = Math.max(0, total - refunded);
+          if (refunded <= 0.0001) {
+            return (
+              <Typography.Text strong>{formatMoney(row.TotalAmount)}</Typography.Text>
+            );
+          }
+          return (
+            <Flex vertical gap={0} align="flex-end">
+              <Typography.Text strong>{formatMoney(net.toFixed(4))}</Typography.Text>
+              <Typography.Text
+                type="secondary"
+                style={{
+                  fontSize: 10,
+                  textDecoration: 'line-through',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {formatMoney(row.TotalAmount)}
+              </Typography.Text>
+            </Flex>
+          );
+        },
       },
       {
         title: 'Status',
@@ -318,13 +340,25 @@ export function SalesListPage() {
                   )}
                 </Flex>
               </Flex>
-              <Flex vertical gap={4} align="flex-end">
+              <Flex vertical gap={2} align="flex-end">
                 <Typography.Text strong>
-                  {formatMoney(row.TotalAmount)}
+                  {formatMoney(
+                    Math.max(
+                      0,
+                      Number(row.TotalAmount) - Number(row.RefundedAmount),
+                    ).toFixed(4),
+                  )}
                 </Typography.Text>
                 {Number(row.RefundedAmount) > 0 && (
-                  <Typography.Text style={{ fontSize: 11, color: '#dc2626' }}>
-                    − {formatMoney(row.RefundedAmount)}
+                  <Typography.Text
+                    type="secondary"
+                    style={{
+                      fontSize: 10,
+                      textDecoration: 'line-through',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {formatMoney(row.TotalAmount)}
                   </Typography.Text>
                 )}
               </Flex>

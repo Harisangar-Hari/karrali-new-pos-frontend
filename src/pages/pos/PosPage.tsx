@@ -28,7 +28,11 @@ export function PosPage() {
     const customerId = usePosCartStore((s) => s.customerId);
 
     const [checkoutTotal, setCheckoutTotal] = useState<string | null>(null);
-    const [receiptSale, setReceiptSale] = useState<SaleDetail | null>(null);
+    const [receiptInfo, setReceiptInfo] = useState<{
+        sale: SaleDetail;
+        cashTendered?: number;
+        changeDue?: number;
+    } | null>(null);
     const [closeOpen, setCloseOpen] = useState(false);
 
     if (isLoading) {
@@ -40,7 +44,7 @@ export function PosPage() {
     }
 
     const handleNewSale = () => {
-        setReceiptSale(null);
+        setReceiptInfo(null);
         clearCart();
     };
 
@@ -111,16 +115,18 @@ export function PosPage() {
                 session={session}
                 hasCustomer={!!customerId}
                 onClose={() => setCheckoutTotal(null)}
-                onSuccess={(sale) => {
+                onSuccess={(result) => {
                     setCheckoutTotal(null);
-                    setReceiptSale(sale);
+                    setReceiptInfo(result);
                 }}
             />
 
             <ReceiptModal
-                open={!!receiptSale}
-                sale={receiptSale}
-                onClose={() => setReceiptSale(null)}
+                open={!!receiptInfo}
+                sale={receiptInfo?.sale ?? null}
+                cashTendered={receiptInfo?.cashTendered}
+                changeDue={receiptInfo?.changeDue}
+                onClose={() => setReceiptInfo(null)}
                 onNewSale={handleNewSale}
             />
 

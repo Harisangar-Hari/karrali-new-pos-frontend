@@ -16,7 +16,6 @@ import {
   App,
   Empty,
   Spin,
-  Tooltip,
 } from 'antd';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import {
@@ -26,7 +25,9 @@ import {
   Trash2,
   Phone,
   Landmark,
+  Eye,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useSuppliers, useDeleteSupplier } from '@/hooks/queries/useSuppliers';
 import { usePermission } from '@/hooks/usePermission';
 import { SupplierFormDrawer } from './SupplierFormDrawer';
@@ -137,7 +138,9 @@ export function SuppliersListPage() {
           sortBy === 'Name' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
         render: (_: unknown, row) => (
           <Flex vertical gap={2}>
-            <Typography.Text strong>{row.Name}</Typography.Text>
+            <Link to={`/suppliers/${row.Id}`}>
+              <Typography.Text strong>{row.Name}</Typography.Text>
+            </Link>
             <Typography.Text type="secondary" style={{ fontSize: 11 }}>
               {row.Code}
             </Typography.Text>
@@ -225,24 +228,36 @@ export function SuppliersListPage() {
         title: 'Actions',
         key: 'actions',
         align: 'right',
-        render: (_: unknown, row) =>
-          canManage ? (
-            <Space size={4}>
+        render: (_: unknown, row) => (
+          <Space size={4}>
+            <Link to={`/suppliers/${row.Id}`}>
               <Button
                 type="text"
                 size="small"
-                icon={<Pencil size={14} />}
-                onClick={() => openEdit(row)}
+                icon={<Eye size={14} />}
+                title="View supplier"
               />
-              <Button
-                type="text"
-                size="small"
-                danger
-                icon={<Trash2 size={14} />}
-                onClick={() => confirmDelete(row)}
-              />
-            </Space>
-          ) : null,
+            </Link>
+            {canManage && (
+              <>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<Pencil size={14} />}
+                  onClick={() => openEdit(row)}
+                  title="Edit supplier"
+                />
+                <Button
+                  type="text"
+                  size="small"
+                  danger
+                  icon={<Trash2 size={14} />}
+                  onClick={() => confirmDelete(row)}
+                />
+              </>
+            )}
+          </Space>
+        ),
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -266,9 +281,11 @@ export function SuppliersListPage() {
           <Card key={row.Id} size="small" styles={{ body: { padding: 12 } }}>
             <Flex justify="space-between" gap={8} align="flex-start">
               <Flex vertical gap={2} style={{ flex: 1, minWidth: 0 }}>
-                <Typography.Text strong ellipsis>
-                  {row.Name}
-                </Typography.Text>
+                <Link to={`/suppliers/${row.Id}`}>
+                  <Typography.Text strong ellipsis>
+                    {row.Name}
+                  </Typography.Text>
+                </Link>
                 <Typography.Text type="secondary" style={{ fontSize: 11 }}>
                   {row.Code}
                 </Typography.Text>
@@ -292,23 +309,32 @@ export function SuppliersListPage() {
                   )}
                 </Flex>
               </Flex>
-              {canManage && (
-                <Space size={0} direction="vertical">
+              <Space size={0} direction="vertical">
+                <Link to={`/suppliers/${row.Id}`}>
                   <Button
                     type="text"
                     size="small"
-                    icon={<Pencil size={14} />}
-                    onClick={() => openEdit(row)}
+                    icon={<Eye size={14} />}
                   />
-                  <Button
-                    type="text"
-                    size="small"
-                    danger
-                    icon={<Trash2 size={14} />}
-                    onClick={() => confirmDelete(row)}
-                  />
-                </Space>
-              )}
+                </Link>
+                {canManage && (
+                  <>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<Pencil size={14} />}
+                      onClick={() => openEdit(row)}
+                    />
+                    <Button
+                      type="text"
+                      size="small"
+                      danger
+                      icon={<Trash2 size={14} />}
+                      onClick={() => confirmDelete(row)}
+                    />
+                  </>
+                )}
+              </Space>
             </Flex>
           </Card>
         ))}
@@ -316,11 +342,9 @@ export function SuppliersListPage() {
     );
   };
 
-  const handleTableChange: NonNullable<TableProps<SupplierRow>['onChange']> = (
-    pagination,
-    _filters,
-    sorter,
-  ) => {
+  const handleTableChange: NonNullable<
+    TableProps<SupplierRow>['onChange']
+  > = (pagination, _filters, sorter) => {
     if (Array.isArray(sorter)) return;
     if (sorter.field && sorter.order) {
       setSortBy(sorter.field as SupplierSortField);

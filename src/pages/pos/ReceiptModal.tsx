@@ -1,20 +1,58 @@
-import { Modal, Button, Flex, Typography, Divider } from 'antd';
-import { Printer } from 'lucide-react';
-import { formatMoney, formatDateTime } from '@/lib/format';
+import { useState } from 'react';
+import { Modal, Button, Flex, Typography, App, Card } from 'antd';
+import { Printer, Download, CheckCircle2 } from 'lucide-react';
+import { formatMoney } from '@/lib/format';
+import { printReceipt } from '@/utils/printReceipt';
+import { downloadReceiptPdf } from '@/utils/downloadReceiptPdf';
+import { saleToReceiptData } from '@/utils/saleToReceiptData';
 import type { SaleDetail } from '@/types/sale';
 
 interface Props {
   open: boolean;
   sale: SaleDetail | null;
+  cashTendered?: number;
+  changeDue?: number;
   onClose: () => void;
   onNewSale: () => void;
 }
 
-export function ReceiptModal({ open, sale, onClose, onNewSale }: Props) {
+export function ReceiptModal({
+  open,
+  sale,
+  cashTendered,
+  changeDue,
+  onClose,
+  onNewSale,
+}: Props) {
+  const { message } = App.useApp();
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
   if (!sale) return null;
 
+  const buildData = () => ({
+    ...saleToReceiptData(sale),
+    cashTendered,
+    changeDue,
+  });
+
   const handlePrint = () => {
-    window.print();
+    printReceipt(buildData());
+  };
+
+  const handleDownloadPdf = async () => {
+    setDownloadingPdf(true);
+    try {
+      await downloadReceiptPdf(
+        buildData(),
+        `invoice-${sale.InvoiceNumber}.pdf`,
+      );
+    } catch {
+      message.error(
+        'PDF download failed — use Print and choose "Save as PDF".',
+      );
+    } finally {
+      setDownloadingPdf(false);
+    }
   };
 
   return (
@@ -22,134 +60,103 @@ export function ReceiptModal({ open, sale, onClose, onNewSale }: Props) {
       open={open}
       onCancel={onClose}
       destroyOnClose
-      width={420}
-      title="Sale complete"
-      footer={
-        <Flex justify="space-between">
-          <Button onClick={onClose}>Close</Button>
-          <Flex gap={8}>
-            <Button icon={<Printer size={14} />} onClick={handlePrint}>
-              Print
-            </Button>
-            <Button type="primary" onClick={onNewSale}>
-              New sale
-            </Button>
-          </Flex>
-        </Flex>
-      }
+      width={460}
+      footer={null}
+      title={null}
+      closable
     >
-      <div className="receipt-printable" style={{ padding: 4 }}>
-        <Flex vertical gap={4} align="center" style={{ marginBottom: 12 }}>
-          <Typography.Title level={4} style={{ margin: 0 }}>
-            Karrali POS
+      <Flex vertical gap={20} align="center" style={{ padding: '16px 0' }}>
+        {/* Success indicator */}
+        <CheckCircle2 size={56} color="#16a34a" strokeWidth={1.5} />
+        <Flex vertical gap={4} align="center">
+          <Typography.Title level={3} style={{ margin: 0 }}>
+            Sale complete
           </Typography.Title>
-          <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-            {sale.Terminal.Name} ({sale.Terminal.Code})
+          <Typography.Text type="secondary">
+            Invoice {sale.InvoiceNumber}
           </Typography.Text>
         </Flex>
 
-        <Divider style={{ margin: '8px 0' }} />
-
-        <Flex justify="space-between">
-          <Typography.Text style={{ fontSize: 12 }}>Invoice</Typography.Text>
-          <Typography.Text strong style={{ fontSize: 12 }}>
-            {sale.InvoiceNumber}
-          </Typography.Text>
-        </Flex>
-        <Flex justify="space-between">
-          <Typography.Text style={{ fontSize: 12 }}>Date</Typography.Text>
-          <Typography.Text style={{ fontSize: 12 }}>
-            {formatDateTime(sale.CreatedAt)}
-          </Typography.Text>
-        </Flex>
-        <Flex justify="space-between">
-          <Typography.Text style={{ fontSize: 12 }}>Cashier</Typography.Text>
-          <Typography.Text style={{ fontSize: 12 }}>
-            {sale.Cashier.FullName ?? sale.Cashier.Username}
-          </Typography.Text>
-        </Flex>
-        {sale.Customer && (
-          <Flex justify="space-between">
-            <Typography.Text style={{ fontSize: 12 }}>Customer</Typography.Text>
-            <Typography.Text style={{ fontSize: 12 }}>
-              {sale.Customer.Name}
-            </Typography.Text>
-          </Flex>
-        )}
-
-        <Divider style={{ margin: '8px 0' }} />
-
-        <Flex vertical gap={6}>
-          {sale.Items.map((item) => (
-            <div key={item.Id}>
+        {/* Summary card */}
+        <Card
+          size="small"
+          style={{ width: '100%' }}
+          styles={{ body: { padding: 16 } }}
+        >
+          <Flex vertical gap={8}>
+            <Flex justify="space-between">
+              <Typography.Text type="secondary">Total</Typography.Text>
+              <Typography.Text strong style={{ fontSize: 18 }}>
+                {formatMoney(sale.TotalAmount)}
+              </Typography.Text>
+            </Flex>
+            {Number(sale.CashAmount) > 0 && (
               <Flex justify="space-between">
-                <Typography.Text style={{ fontSize: 12 }} strong>
-                  {item.Product.Name}
-                </Typography.Text>
-                <Typography.Text style={{ fontSize: 12 }} strong>
-                  {formatMoney(item.LineTotal)}
+                <Typography.Text type="secondary">Cash</Typography.Text>
+                <Typography.Text>
+                  {formatMoney(sale.CashAmount)}
                 </Typography.Text>
               </Flex>
-              <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                {item.Qty} × {formatMoney(item.UnitPrice)}
-                {Number(item.Discount) > 0 ? ` − ${item.Discount}%` : ''}
-              </Typography.Text>
-            </div>
-          ))}
-        </Flex>
-
-        <Divider style={{ margin: '8px 0' }} />
-
-        <Flex justify="space-between">
-          <Typography.Text style={{ fontSize: 12 }}>Subtotal</Typography.Text>
-          <Typography.Text style={{ fontSize: 12 }}>
-            {formatMoney(sale.Subtotal)}
-          </Typography.Text>
-        </Flex>
-        {Number(sale.DiscountAmount) > 0 && (
-          <Flex justify="space-between">
-            <Typography.Text style={{ fontSize: 12 }}>Discount</Typography.Text>
-            <Typography.Text style={{ fontSize: 12 }}>
-              − {formatMoney(sale.DiscountAmount)}
-            </Typography.Text>
+            )}
+            {Number(sale.CardAmount) > 0 && (
+              <Flex justify="space-between">
+                <Typography.Text type="secondary">Card</Typography.Text>
+                <Typography.Text>
+                  {formatMoney(sale.CardAmount)}
+                </Typography.Text>
+              </Flex>
+            )}
+            {Number(sale.CreditAmount) > 0 && (
+              <Flex justify="space-between">
+                <Typography.Text type="secondary">Credit owed</Typography.Text>
+                <Typography.Text style={{ color: '#dc2626' }}>
+                  {formatMoney(sale.CreditAmount)}
+                </Typography.Text>
+              </Flex>
+            )}
+            {Number(sale.ChequeAmount) > 0 && (
+              <Flex justify="space-between">
+                <Typography.Text type="secondary">Cheque</Typography.Text>
+                <Typography.Text>
+                  {formatMoney(sale.ChequeAmount)}
+                </Typography.Text>
+              </Flex>
+            )}
+            {sale.Customer && (
+              <Flex justify="space-between">
+                <Typography.Text type="secondary">Customer</Typography.Text>
+                <Typography.Text>{sale.Customer.Name}</Typography.Text>
+              </Flex>
+            )}
           </Flex>
-        )}
-        {Number(sale.TaxAmount) > 0 && (
-          <Flex justify="space-between">
-            <Typography.Text style={{ fontSize: 12 }}>Tax</Typography.Text>
-            <Typography.Text style={{ fontSize: 12 }}>
-              {formatMoney(sale.TaxAmount)}
-            </Typography.Text>
-          </Flex>
-        )}
-        <Divider style={{ margin: '8px 0' }} />
-        <Flex justify="space-between">
-          <Typography.Text strong>Total</Typography.Text>
-          <Typography.Text strong>{formatMoney(sale.TotalAmount)}</Typography.Text>
-        </Flex>
-        <Flex justify="space-between">
-          <Typography.Text style={{ fontSize: 12 }}>Paid (cash)</Typography.Text>
-          <Typography.Text style={{ fontSize: 12 }}>
-            {formatMoney(sale.CashAmount)}
-          </Typography.Text>
-        </Flex>
+        </Card>
 
-        {sale.Notes && (
-          <>
-            <Divider style={{ margin: '8px 0' }} />
-            <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-              {sale.Notes}
-            </Typography.Text>
-          </>
-        )}
-
-        <Divider style={{ margin: '12px 0' }} />
-        <Flex justify="center">
-          <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-            Thank you
-          </Typography.Text>
+        {/* Actions */}
+        <Flex gap={8} style={{ width: '100%' }}>
+          <Button
+            icon={<Printer size={14} />}
+            onClick={handlePrint}
+            style={{ flex: 1 }}
+          >
+            Print
+          </Button>
+          <Button
+            icon={<Download size={14} />}
+            onClick={handleDownloadPdf}
+            loading={downloadingPdf}
+            style={{ flex: 1 }}
+          >
+            PDF
+          </Button>
+          <Button
+            type="primary"
+            onClick={onNewSale}
+            style={{ flex: 1 }}
+          >
+            New sale
+          </Button>
         </Flex>
-      </div>
+      </Flex>
     </Modal>
   );
 }

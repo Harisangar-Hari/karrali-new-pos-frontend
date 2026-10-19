@@ -15,11 +15,13 @@ import {
   Skeleton,
   Table,
   Empty,
+  Space,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Wand2, Printer } from 'lucide-react';
 import {
   useCreateProduct,
   useProduct,
@@ -30,6 +32,9 @@ import {
   useCategoriesLookup,
   useWarehousesLookup,
 } from '@/hooks/queries/useLookups';
+import { BarcodePreview } from '@/components/BarcodePreview';
+import { generateEan13 } from '@/utils/barcode';
+import { printBarcodeLabels } from '@/utils/printBarcode';
 import { getErrorMessage } from '@/lib/api';
 import { formatQty } from '@/lib/format';
 import type {
@@ -141,9 +146,6 @@ export function ProductFormDrawer({ open, product, onClose }: Props) {
   const { data: brands = [], isLoading: brandLoading } = useBrandsLookup();
   const { data: warehouses = [], isLoading: whLoading } = useWarehousesLookup();
 
-  // Fetch the full detail (with per-warehouse stock) only when editing
-  // and the drawer is open. Detail drives the read-only "Current stock"
-  // section below the form.
   const { data: detail, isLoading: detailLoading } = useProduct(
     isEdit && open && product ? product.Id : null,
   );
@@ -155,6 +157,7 @@ export function ProductFormDrawer({ open, product, onClose }: Props) {
     control,
     handleSubmit,
     reset,
+    getValues,
     formState: { isSubmitting },
   } = useForm<ProductForm>({
     resolver: zodResolver(productSchema),
@@ -168,6 +171,21 @@ export function ProductFormDrawer({ open, product, onClose }: Props) {
 
   const submitting =
     isSubmitting || createMutation.isPending || updateMutation.isPending;
+
+  const handlePrintBarcode = () => {
+    const barcode = getValues('Barcode');
+    if (!barcode || !barcode.trim()) return;
+    const name = getValues('Name') || 'Product';
+    const price = getValues('Price');
+    printBarcodeLabels([
+      {
+        productName: name,
+        barcode: barcode.trim(),
+        price: price > 0 ? price : undefined,
+        copies: 1,
+      },
+    ]);
+  };
 
   const onSubmit = async (values: ProductForm) => {
     const payload = {
@@ -312,6 +330,7 @@ export function ProductFormDrawer({ open, product, onClose }: Props) {
               />
             </Field>
           </div>
+
           <div style={{ flex: 1, minWidth: 200 }}>
             <Field label="Barcode">
               <Controller
@@ -319,15 +338,35 @@ export function ProductFormDrawer({ open, product, onClose }: Props) {
                 control={control}
                 render={({ field, fieldState }) => (
                   <>
-                    <Input
-                      {...field}
-                      value={field.value ?? ''}
-                      placeholder="Optional"
-                      status={fieldState.error ? 'error' : undefined}
-                    />
+                    <Flex gap={4}>
+                      <Input
+                        {...field}
+                        value={field.value ?? ''}
+                        placeholder="Optional — or generate one"
+                        status={fieldState.error ? 'error' : undefined}
+                      />
+                      <Button
+                        icon={<Wand2 size={14} />}
+                        onClick={() => field.onChange(generateEan13())}
+                        title="Auto-generate EAN-13"
+                      >
+                        Gen
+                      </Button>
+                      <Button
+                        icon={<Printer size={14} />}
+                        disabled={!field.value || !field.value.trim()}
+                        onClick={handlePrintBarcode}
+                        title="Print this barcode label"
+                      />
+                    </Flex>
                     <div style={ERR_STYLE}>
                       {fieldState.error?.message ?? ''}
                     </div>
+                    {field.value && field.value.trim() && (
+                      <div style={{ marginTop: 8 }}>
+                        <BarcodePreview value={field.value} height={50} />
+                      </div>
+                    )}
                   </>
                 )}
               />
@@ -598,7 +637,6 @@ export function ProductFormDrawer({ open, product, onClose }: Props) {
           </>
         )}
 
-        {/* Read-only current stock — only when editing an existing product */}
         {isEdit && (
           <>
             <Divider orientation="left" plain>

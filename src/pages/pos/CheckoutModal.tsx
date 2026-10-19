@@ -22,20 +22,27 @@ import { getErrorMessage } from '@/lib/api';
 import type { SaleDetail, SalePaymentMethod } from '@/types/sale';
 import type { OpenSessionSummary } from '@/types/cashSession';
 
+export interface SaleCompletionResult {
+  sale: SaleDetail;
+  /** What the customer physically handed over (only when cash was used). */
+  cashTendered?: number;
+  /** Change given back to the customer. */
+  changeDue?: number;
+}
+
 interface Props {
   open: boolean;
   total: string;
   session: OpenSessionSummary;
   hasCustomer: boolean;
   onClose: () => void;
-  onSuccess: (sale: SaleDetail) => void;
+  onSuccess: (result: SaleCompletionResult) => void;
 }
 
 interface PaymentLine {
   id: string;
   Method: SalePaymentMethod;
   Amount: number | null;
-  // Cheque fields
   ChequeNumber?: string;
   BankName?: string;
   BankBranch?: string;
@@ -55,6 +62,8 @@ function newLineId() {
   lineCounter += 1;
   return `p-${lineCounter}`;
 }
+
+const EPSILON = new Decimal('0.0001');
 
 export function CheckoutModal({
   open,
@@ -93,19 +102,39 @@ export function CheckoutModal({
     [payments],
   );
 
+  // Cash entered by the cashier — the only method that can overpay.
+  const cashEntered = useMemo(
+    () =>
+      payments
+        .filter((p) => p.Method === 'CASH')
+        .reduce(
+          (s, p) => s.add(new Decimal(p.Amount ?? 0)),
+          new Decimal(0),
+        ),
+    [payments],
+  );
+
   const remaining = totalDec.sub(paidTotal);
-  const remainingAbs = remaining.abs();
-  const balanced = remainingAbs.lt(new Decimal('0.0001'));
-  const isShort = remaining.gt(new Decimal('0.0001'));
+  const balanced = remaining.abs().lt(EPSILON);
+  const isShort = remaining.gt(EPSILON);
 
+  // Over-payment: allowed only if cash covers the excess.
+  const overBy = paidTotal.gt(totalDec.add(EPSILON))
+    ? paidTotal.sub(totalDec)
+    : new Decimal(0);
+  const isOverFromCash = overBy.gt(EPSILON) && cashEntered.gte(overBy);
+  const isOverFromNonCash =
+    overBy.gt(EPSILON) && cashEntered.lt(overBy);
+  const changeDue = isOverFromCash ? overBy : new Decimal(0);
 
-   const validPayments = payments.filter((p) => (p.Amount ?? 0) > 0);
+  const canBalance = balanced || isOverFromCash;
+
+  const validPayments = payments.filter((p) => (p.Amount ?? 0) > 0);
 
   const hasCredit = validPayments.some((p) => p.Method === 'CREDIT');
   const hasCheque = validPayments.some((p) => p.Method === 'CHEQUE');
   const creditMissingCustomer = hasCredit && !customerId;
   const chequeMissingCustomer = hasCheque && !customerId;
-
   const chequeIncomplete = validPayments.some(
     (p) =>
       p.Method === 'CHEQUE' &&
@@ -115,7 +144,7 @@ export function CheckoutModal({
   const canSubmit =
     !createSale.isPending &&
     validPayments.length > 0 &&
-    balanced &&
+    canBalance &&
     !creditMissingCustomer &&
     !chequeMissingCustomer &&
     !chequeIncomplete;
@@ -143,6 +172,25 @@ export function CheckoutModal({
 
   const handleConfirm = async () => {
     try {
+      // Adjust the cash line(s) down by the change amount, because the
+      // backend enforces sum(payments) === total. The full tendered amount
+      // stays visible in the UI and on the receipt.
+      let remainingChange = changeDue;
+      const adjustedPayments: PaymentLine[] = payments.map((p) => {
+        if (p.Method === 'CASH' && remainingChange.gt(EPSILON)) {
+          const entered = new Decimal(p.Amount ?? 0);
+          const reduceBy = Decimal.min(entered, remainingChange);
+          remainingChange = remainingChange.sub(reduceBy);
+          const adjusted = entered.sub(reduceBy);
+          return { ...p, Amount: adjusted.toNumber() };
+        }
+        return p;
+      });
+
+      const submitted = adjustedPayments.filter(
+        (p) => (p.Amount ?? 0) > 0,
+      );
+
       const sale = await createSale.mutateAsync({
         TerminalId: session.TerminalId,
         CustomerId: customerId ?? undefined,
@@ -151,12 +199,10 @@ export function CheckoutModal({
           ProductId: l.ProductId,
           Qty: l.Qty,
           UnitPrice: Number(l.UnitPrice),
-          // Send the compound effective % so backend math matches the
-          // frontend's post-invoice-discount total exactly.
           Discount: effectiveLineDiscount(l, invoiceDiscount),
           TaxRate: l.TaxRate ?? undefined,
         })),
-        Payments: validPayments.map((p) => {
+        Payments: submitted.map((p) => {
           const base = {
             Method: p.Method,
             Amount: Number((p.Amount ?? 0).toFixed(4)),
@@ -175,25 +221,31 @@ export function CheckoutModal({
         }),
       });
       clear();
-      onSuccess(sale);
+      onSuccess({
+        sale,
+        cashTendered: cashEntered.gt(0) ? cashEntered.toNumber() : undefined,
+        changeDue: changeDue.gt(0) ? changeDue.toNumber() : undefined,
+      });
     } catch (err) {
       message.error(getErrorMessage(err));
     }
   };
 
-    // Compute a human-readable reason why submit is blocked, if any.
+  // Human-readable "why is submit blocked"
   const blockReason: string | null = (() => {
     if (createSale.isPending) return null;
     if (validPayments.length === 0) {
-      return payments.some((p) => p.Method === 'CREDIT' && (p.Amount ?? 0) === 0)
-        ? 'Credit line is 0 — this sale adds nothing to the customer\'s debt. Remove it or set an amount.'
-        : 'Add at least one payment line with an amount greater than 0.';
+      return 'Add at least one payment line with an amount greater than 0.';
     }
-    if (!balanced && isShort) {
-      return `Remaining ${formatMoney(remaining.toFixed(4))} — add another payment or increase an amount.`;
+    if (isOverFromNonCash) {
+      return `Over by ${formatMoney(
+        overBy.toFixed(4),
+      )} — change can only come from the cash line. Reduce a non-cash payment.`;
     }
-    if (!balanced) {
-      return `Over by ${formatMoney(remaining.abs().toFixed(4))} — reduce a payment amount.`;
+    if (isShort) {
+      return `Remaining ${formatMoney(
+        remaining.toFixed(4),
+      )} — add another payment or increase an amount.`;
     }
     if (creditMissingCustomer) {
       return 'Attach a customer from the POS header to use Credit.';
@@ -219,20 +271,22 @@ export function CheckoutModal({
         <Flex justify="space-between" align="center">
           <Flex vertical>
             <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-              Remaining
+              {isOverFromCash ? 'Change due' : 'Remaining'}
             </Typography.Text>
             <Typography.Text
               strong
               style={{
                 fontSize: 15,
-                color: balanced
+                color: balanced || isOverFromCash
                   ? '#16a34a'
                   : isShort
                     ? '#dc2626'
                     : '#f59e0b',
               }}
             >
-              {formatMoney(remaining.toFixed(4))}
+              {isOverFromCash
+                ? formatMoney(changeDue.toFixed(4))
+                : formatMoney(remaining.toFixed(4))}
             </Typography.Text>
           </Flex>
           <Flex gap={8}>
@@ -277,14 +331,7 @@ export function CheckoutModal({
         />
       )}
 
-      {/* Add-method bar */}
-      <Flex
-        align="center"
-        justify="space-between"
-        gap={8}
-        wrap="wrap"
-        style={{ marginBottom: 8 }}
-      >
+      <Flex align="center" justify="space-between" gap={8} wrap="wrap" style={{ marginBottom: 8 }}>
         <Flex align="center" gap={8} wrap="wrap">
           <Typography.Text style={{ fontSize: 12 }}>Add payment:</Typography.Text>
           <Segmented
@@ -309,19 +356,17 @@ export function CheckoutModal({
         </Button>
       </Flex>
 
-      {/* Semantics hint — kills the "what does credit mean" confusion */}
       <Typography.Text
         type="secondary"
         style={{ fontSize: 11, display: 'block', marginBottom: 12 }}
       >
-        <strong>Cash / Card / Cheque</strong> = customer pays now.{' '}
-        <strong>Credit</strong> = amount added to their debt (they pay later).
-        Do not add a Credit line with 0 — just don't add one at all.
+        <strong>Cash</strong> may exceed the total — change is returned
+        automatically. <strong>Card / Cheque</strong> must not exceed the
+        remaining amount.
       </Typography.Text>
 
       <Divider style={{ margin: '4px 0 12px' }} />
 
-      {/* Payment lines */}
       <Flex vertical gap={10} style={{ maxHeight: 360, overflowY: 'auto' }}>
         {payments.map((p) => (
           <div
@@ -340,7 +385,9 @@ export function CheckoutModal({
               <InputNumber
                 value={p.Amount ?? undefined}
                 onChange={(v) =>
-                  updatePayment(p.id, { Amount: v === null ? null : Number(v) })
+                  updatePayment(p.id, {
+                    Amount: v === null ? null : Number(v),
+                  })
                 }
                 min={0}
                 precision={4}
@@ -441,12 +488,25 @@ export function CheckoutModal({
 
       <Flex vertical gap={4}>
         <Summary label="Total" value={formatMoney(total)} />
-        <Summary label="Paid now" value={formatMoney(paidTotal.toFixed(4))} />
         <Summary
-          label="Remaining"
-          value={formatMoney(remaining.toFixed(4))}
-          valueColor={balanced ? '#16a34a' : isShort ? '#dc2626' : '#f59e0b'}
+          label={isOverFromCash ? 'Tendered' : 'Paid'}
+          value={formatMoney(paidTotal.toFixed(4))}
         />
+        {isOverFromCash ? (
+          <Summary
+            label="Change"
+            value={formatMoney(changeDue.toFixed(4))}
+            valueColor="#16a34a"
+          />
+        ) : (
+          <Summary
+            label="Remaining"
+            value={formatMoney(remaining.toFixed(4))}
+            valueColor={
+              balanced ? '#16a34a' : isShort ? '#dc2626' : '#f59e0b'
+            }
+          />
+        )}
       </Flex>
 
       {blockReason && (
@@ -459,7 +519,6 @@ export function CheckoutModal({
       )}
     </Modal>
   );
-
 }
 
 function Summary({

@@ -8,12 +8,14 @@ export function useCreateSale() {
   return useMutation<SaleDetail, unknown, CreateSaleInput>({
     mutationFn: (input) => createSale(input),
     onSuccess: () => {
-      // Sale affects stock, cash ledger, customer balance, loyalty —
-      // invalidate broadly so any open list refreshes.
+      // A sale touches stock, cash ledger, customer balance, and loyalty.
+      // Invalidate everything so POS search reflects the new stock on the
+      // next keystroke.
       qc.invalidateQueries({ queryKey: qk.sales.all });
       qc.invalidateQueries({ queryKey: qk.products.all });
       qc.invalidateQueries({ queryKey: qk.customers.all });
       qc.invalidateQueries({ queryKey: qk.cashSessions.all });
+      qc.invalidateQueries({ queryKey: qk.stock.all });
     },
   });
 }

@@ -11,13 +11,20 @@ import {
   App,
   Select,
   Alert,
+  Tooltip,
 } from 'antd';
-import { ArrowDownToLine, ArrowUpFromLine, Landmark } from 'lucide-react';
+import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Landmark,
+} from 'lucide-react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useCreateCashMovement } from '@/hooks/queries/useCashMovements';
 import { useBankAccountsLookup } from '@/hooks/queries/useExpenseLookups';
+import { useMyOpenSession } from '@/hooks/queries/useCashSession';
+import { NoOpenSessionWarning } from '@/components/NoOpenSessionWarning';
 import { getErrorMessage } from '@/lib/api';
 import type { CashMovementType } from '@/types/cashMovement';
 
@@ -63,6 +70,9 @@ export function CreateCashMovementDrawer({
 
   const { data: bankAccounts = [], isLoading: bankLoading } =
     useBankAccountsLookup();
+  const { data: openSession, isLoading: sessionLoading } = useMyOpenSession();
+  const hasSession = !!openSession;
+
   const createMutation = useCreateCashMovement();
 
   const [type, setType] = useState<CashMovementType>('CASH_IN');
@@ -105,7 +115,6 @@ export function CreateCashMovementDrawer({
 
   const hasBankAccount = !!watch('BankAccountId');
 
-  // Dynamic semantics label
   const semantics = useMemo(() => {
     if (type === 'CASH_IN' && hasBankAccount) {
       return {
@@ -140,8 +149,16 @@ export function CreateCashMovementDrawer({
   }, [type, hasBankAccount]);
 
   const submitting = isSubmitting || createMutation.isPending;
+  const blockedBySession = !sessionLoading && !hasSession;
+  const canSubmit = !submitting && !blockedBySession;
 
   const onSubmit = async (values: Form) => {
+    if (!hasSession) {
+      message.error(
+        'Open a cash drawer before recording a movement.',
+      );
+      return;
+    }
     try {
       await createMutation.mutateAsync({
         Type: values.Type,
@@ -171,16 +188,29 @@ export function CreateCashMovementDrawer({
           <Button onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
-          <Button
-            type="primary"
-            loading={submitting}
-            onClick={handleSubmit(onSubmit)}
+          <Tooltip
+            title={
+              blockedBySession
+                ? 'Open a cash drawer first — this movement must attach to a session'
+                : undefined
+            }
           >
-            Record movement
-          </Button>
+            <Button
+              type="primary"
+              loading={submitting}
+              disabled={!canSubmit}
+              onClick={handleSubmit(onSubmit)}
+            >
+              Record movement
+            </Button>
+          </Tooltip>
         </Flex>
       }
     >
+      {blockedBySession && (
+        <NoOpenSessionWarning context="Recording a cash movement" />
+      )}
+
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
         {/* Type */}
         <div style={{ marginBottom: 12 }}>
@@ -248,7 +278,9 @@ export function CreateCashMovementDrawer({
                     status={fieldState.error ? 'error' : undefined}
                     placeholder="0.0000"
                   />
-                  <div style={ERR_STYLE}>{fieldState.error?.message ?? ''}</div>
+                  <div style={ERR_STYLE}>
+                    {fieldState.error?.message ?? ''}
+                  </div>
                 </>
               )}
             />
@@ -302,7 +334,9 @@ export function CreateCashMovementDrawer({
                   placeholder="e.g. Owner draw, supplier refund, daily bank deposit"
                   status={fieldState.error ? 'error' : undefined}
                 />
-                <div style={ERR_STYLE}>{fieldState.error?.message ?? ''}</div>
+                <div style={ERR_STYLE}>
+                  {fieldState.error?.message ?? ''}
+                </div>
               </>
             )}
           />

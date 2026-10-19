@@ -43,6 +43,13 @@ export interface ProductListRow {
   DeletedAt: string | null;
   Category: CategoryRef;
   Brand: BrandRef | null;
+  WarehouseStocks?: { WarehouseId?: string; Qty: number }[];
+  /**
+   * Per-warehouse stock. Present only after the backend PRODUCT_LIST_INCLUDE
+   * adds `WarehouseStocks: { select: { Qty: true } }`. Before that change
+   * lands, this is undefined and the list Qty column shows "—".
+   */
+  
 }
 
 export interface WarehouseStockRow {
@@ -53,6 +60,7 @@ export interface WarehouseStockRow {
 }
 
 export interface ProductDetail extends ProductListRow {
+  /** The detail endpoint always includes per-warehouse stock. */
   WarehouseStocks: WarehouseStockRow[];
 }
 
@@ -90,6 +98,7 @@ export interface QueryProductParams extends PaginationParams {
   minPrice?: number;
   maxPrice?: number;
   includeDeleted?: boolean;
+   WarehouseId?: string;
 }
 
 export type ProductSortField =

@@ -43,6 +43,7 @@ import { QuotationFormPage } from '@/pages/quotations/QuotationFormPage';
 import { QuotationsListPage } from '@/pages/quotations/QuotationsListPage';
 import { StockLedgerPage } from '@/pages/stock/StockLedgerPage';
 import { AuditLogsListPage } from '@/pages/audit/AuditLogsListPage';
+import { SupplierDetailPage } from '@/pages/suppliers/SupplierDetailPage';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -66,6 +67,7 @@ export const router = createBrowserRouter([
           { path: '/customers', element: <CustomersListPage /> },
           { path: '/customers/:id', element: <CustomerDetailPage /> },
           { path: '/suppliers', element: <SuppliersListPage /> },
+          { path: '/suppliers/:id', element: <SupplierDetailPage /> },
 
 
           // F5 — POS

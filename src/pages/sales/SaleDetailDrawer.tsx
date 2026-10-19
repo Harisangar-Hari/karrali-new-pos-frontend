@@ -12,13 +12,17 @@ import {
   Empty,
   Button,
   Alert,
+  App,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { XCircle, Gift } from 'lucide-react';
+import { XCircle, Gift, Printer, Download } from 'lucide-react';
 import { useSale } from '@/hooks/queries/useSales';
 import { usePermission } from '@/hooks/usePermission';
 import { CancelSaleModal } from './CancelSaleModal';
 import { formatMoney, formatDate, formatDateTime } from '@/lib/format';
+import { printReceipt } from '@/utils/printReceipt';
+import { downloadReceiptPdf } from '@/utils/downloadReceiptPdf';
+import { saleToReceiptData } from '@/utils/saleToReceiptData';
 import type {
   SaleItemRow,
   SalePaymentRow,
@@ -50,12 +54,36 @@ const METHOD_COLOR: Record<SalePaymentMethod, string> = {
 };
 
 export function SaleDetailDrawer({ saleId, onClose }: Props) {
+  const { message } = App.useApp();
   const screens = useBreakpoint();
   const isMobile = !screens.md;
   const { data, isLoading } = useSale(saleId);
 
   const canVoid = usePermission('sales.void');
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const handlePrint = () => {
+    if (!data) return;
+    printReceipt(saleToReceiptData(data));
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!data) return;
+    setDownloadingPdf(true);
+    try {
+      await downloadReceiptPdf(
+        saleToReceiptData(data),
+        `invoice-${data.InvoiceNumber}.pdf`,
+      );
+    } catch {
+      message.error(
+        'PDF download failed — use the Print button and choose "Save as PDF".',
+      );
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   const itemColumns: ColumnsType<SaleItemRow> = [
     {
@@ -81,9 +109,7 @@ export function SaleDetailDrawer({ saleId, onClose }: Props) {
         <Flex vertical gap={0} align="flex-end">
           <Typography.Text>{v}</Typography.Text>
           {row.ReturnedQty > 0 && (
-            <Typography.Text
-              style={{ fontSize: 10, color: '#f59e0b' }}
-            >
+            <Typography.Text style={{ fontSize: 10, color: '#f59e0b' }}>
               {row.ReturnedQty} returned
             </Typography.Text>
           )}
@@ -258,14 +284,33 @@ export function SaleDetailDrawer({ saleId, onClose }: Props) {
         width={isMobile ? '100%' : 720}
         destroyOnClose
         extra={
-          data && canVoid && canCancel ? (
-            <Button
-              danger
-              icon={<XCircle size={14} />}
-              onClick={() => setCancelOpen(true)}
-            >
-              Cancel sale
-            </Button>
+          data ? (
+            <Flex gap={8}>
+              <Button
+                icon={<Printer size={14} />}
+                onClick={handlePrint}
+                title="Print receipt"
+              >
+                {isMobile ? '' : 'Print'}
+              </Button>
+              <Button
+                icon={<Download size={14} />}
+                onClick={handleDownloadPdf}
+                loading={downloadingPdf}
+                title="Download PDF"
+              >
+                {isMobile ? '' : 'PDF'}
+              </Button>
+              {canVoid && canCancel && (
+                <Button
+                  danger
+                  icon={<XCircle size={14} />}
+                  onClick={() => setCancelOpen(true)}
+                >
+                  {isMobile ? '' : 'Cancel'}
+                </Button>
+              )}
+            </Flex>
           ) : null
         }
       >
@@ -284,7 +329,11 @@ export function SaleDetailDrawer({ saleId, onClose }: Props) {
                     {data.CancelledAt && (
                       <Typography.Text
                         type="secondary"
-                        style={{ display: 'block', fontSize: 11, marginTop: 4 }}
+                        style={{
+                          display: 'block',
+                          fontSize: 11,
+                          marginTop: 4,
+                        }}
                       >
                         on {formatDateTime(data.CancelledAt)}
                       </Typography.Text>
@@ -319,8 +368,7 @@ export function SaleDetailDrawer({ saleId, onClose }: Props) {
                 {
                   key: 'cashier',
                   label: 'Cashier',
-                  children:
-                    data.Cashier.FullName ?? data.Cashier.Username,
+                  children: data.Cashier.FullName ?? data.Cashier.Username,
                 },
                 {
                   key: 'warehouse',
@@ -385,7 +433,6 @@ export function SaleDetailDrawer({ saleId, onClose }: Props) {
               ]}
             />
 
-            {/* Payment split chips */}
             <Flex gap={8} wrap="wrap">
               {Number(data.CashAmount) > 0 && (
                 <Tag color="green">
@@ -393,14 +440,10 @@ export function SaleDetailDrawer({ saleId, onClose }: Props) {
                 </Tag>
               )}
               {Number(data.CardAmount) > 0 && (
-                <Tag color="blue">
-                  Card {formatMoney(data.CardAmount)}
-                </Tag>
+                <Tag color="blue">Card {formatMoney(data.CardAmount)}</Tag>
               )}
               {Number(data.CreditAmount) > 0 && (
-                <Tag color="red">
-                  Credit {formatMoney(data.CreditAmount)}
-                </Tag>
+                <Tag color="red">Credit {formatMoney(data.CreditAmount)}</Tag>
               )}
               {Number(data.ChequeAmount) > 0 && (
                 <Tag color="purple">
@@ -414,7 +457,6 @@ export function SaleDetailDrawer({ saleId, onClose }: Props) {
               )}
             </Flex>
 
-            {/* Loyalty block */}
             {(data.LoyaltyEarnedPoints > 0 ||
               data.LoyaltyRedeemedPoints > 0 ||
               data.LoyaltyReversedPoints > 0) && (
