@@ -23,9 +23,11 @@ export const qk = {
     list: (filters?: unknown) => ['sales', 'list', filters ?? {}] as const,
     detail: (id: string) => ['sales', 'detail', id] as const,
   },
+
   stock: {
     all: ['stock'] as const,
-    product: (productId: string) => ['stock', 'product', productId] as const,
+    product: (productId: string) =>
+      ['stock', 'product', productId] as const,
     ledger: (filters?: unknown) => ['stock', 'ledger', filters ?? {}] as const,
   },
   saleReturns: {
@@ -33,6 +35,10 @@ export const qk = {
     list: (filters?: unknown) =>
       ['sale-returns', 'list', filters ?? {}] as const,
     detail: (id: string) => ['sale-returns', 'detail', id] as const,
+  },
+  audit: {
+    all: ['audit'] as const,
+    list: (filters?: unknown) => ['audit', 'list', filters ?? {}] as const,
   },
   creditPayments: {
     all: ['credit-payments'] as const,
@@ -82,6 +88,48 @@ export const qk = {
   },
   reports: {
     all: ['reports'] as const,
+  },
+  purchases: {
+    all: ['purchases'] as const,
+    list: (filters?: unknown) => ['purchases', 'list', filters ?? {}] as const,
+    detail: (id: string) => ['purchases', 'detail', id] as const,
+  },
+  supplierPayments: {
+    all: ['supplier-payments'] as const,
+    list: (filters?: unknown) =>
+      ['supplier-payments', 'list', filters ?? {}] as const,
+    detail: (id: string) => ['supplier-payments', 'detail', id] as const,
+  },
+  supplierCheques: {
+    all: ['supplier-cheques'] as const,
+    list: (filters?: unknown) =>
+      ['supplier-cheques', 'list', filters ?? {}] as const,
+    detail: (id: string) => ['supplier-cheques', 'detail', id] as const,
+  },
+  users: {
+    all: ['users'] as const,
+    list: (filters?: unknown) => ['users', 'list', filters ?? {}] as const,
+    detail: (id: string) => ['users', 'detail', id] as const,
+    roles: ['users', 'roles'] as const,
+  },
+  settings: {
+    all: ['settings'] as const,
+    list: (filters?: unknown) => ['settings', 'list', filters ?? {}] as const,
+    detail: (key: string) => ['settings', 'detail', key] as const,
+  },
+  loyalty: {
+    all: ['loyalty'] as const,
+    config: ['loyalty', 'config'] as const,
+    customer: (customerId: string) =>
+      ['loyalty', 'customer', customerId] as const,
+    transactions: (filters?: unknown) =>
+      ['loyalty', 'transactions', filters ?? {}] as const,
+  },
+
+  quotations: {
+    all: ['quotations'] as const,
+    list: (filters?: unknown) => ['quotations', 'list', filters ?? {}] as const,
+    detail: (id: string) => ['quotations', 'detail', id] as const,
   },
   suppliers: {
     all: ['suppliers'] as const,

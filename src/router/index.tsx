@@ -25,6 +25,24 @@ import { ExpenseCategoriesListPage } from '@/pages/expense-categories/ExpenseCat
 import { CashFlowPage } from '@/pages/reports/CashFlowPage';
 import { ZReportPage } from '@/pages/reports/ZReportPage';
 import { SalesSummaryPage } from '@/pages/reports/SalesSummaryPage';
+import { ChequeCalendarPage } from '@/pages/reports/ChequeCalendarPage';
+import { ArAgingPage } from '@/pages/reports/ArAgingPage';
+import { InventoryMovementPage } from '@/pages/reports/InventoryMovementPage';
+import { StockValuationPage } from '@/pages/reports/StockValuationPage';
+import { ProfitPage } from '@/pages/reports/ProfitPage';
+
+import { NewPurchasePage } from '@/pages/purchases/NewPurchasePage';
+import { PurchasesListPage } from '@/pages/purchases/PurchasesListPage';
+import { SupplierPaymentsListPage } from '@/pages/supplier-payments/SupplierPaymentsListPage';
+import { SupplierChequesListPage } from '@/pages/supplier-cheques/SupplierChequesListPage';
+import { SalesListPage } from '@/pages/sales/SalesListPage';
+import { UsersListPage } from '@/pages/users/UsersListPage';
+import { SettingsListPage } from '@/pages/settings/SettingsListPage';
+import { LoyaltyPage } from '@/pages/loyalty/LoyaltyPage';
+import { QuotationFormPage } from '@/pages/quotations/QuotationFormPage';
+import { QuotationsListPage } from '@/pages/quotations/QuotationsListPage';
+import { StockLedgerPage } from '@/pages/stock/StockLedgerPage';
+import { AuditLogsListPage } from '@/pages/audit/AuditLogsListPage';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -40,7 +58,7 @@ export const router = createBrowserRouter([
           { path: '/products', element: <ProductsListPage /> },
           { path: '/categories', element: <CategoriesListPage /> },
           { path: '/brands', element: <BrandsListPage /> },
-          { path: '/stock', element: <PlaceholderPage /> },
+          { path: '/stock', element: <StockLedgerPage /> },
           { path: '/warehouses', element: <WarehousesListPage /> },
           { path: '/terminals', element: <TerminalsListPage /> },
 
@@ -48,18 +66,18 @@ export const router = createBrowserRouter([
           { path: '/customers', element: <CustomersListPage /> },
           { path: '/customers/:id', element: <CustomerDetailPage /> },
           { path: '/suppliers', element: <SuppliersListPage /> },
-          { path: '/suppliers/:id', element: <PlaceholderPage /> },
+
 
           // F5 — POS
           { path: '/pos', element: <PosPage /> },
-          { path: '/sales', element: <PlaceholderPage /> },
-          { path: '/sales/:id', element: <PlaceholderPage /> },
+          { path: '/sales', element: <SalesListPage /> },
 
           // F6 — Purchasing
-          { path: '/purchases', element: <PlaceholderPage /> },
-          { path: '/purchases/:id', element: <PlaceholderPage /> },
-          { path: '/supplier-payments', element: <PlaceholderPage /> },
-          { path: '/supplier-cheques', element: <PlaceholderPage /> },
+          { path: '/purchases', element: <PurchasesListPage /> },
+          { path: '/purchases/new', element: <NewPurchasePage /> },
+          { path: '/supplier-payments', element: <SupplierPaymentsListPage /> },
+          { path: '/supplier-cheques', element: <SupplierChequesListPage /> },
+
 
           // F7 — Cash & Banking
           { path: '/cash-sessions', element: <CashSessionsListPage /> },
@@ -69,11 +87,11 @@ export const router = createBrowserRouter([
           { path: '/expense-categories', element: <ExpenseCategoriesListPage /> },
           // F8 — Reports
 
-          { path: '/reports/profit', element: <PlaceholderPage /> },
-          { path: '/reports/stock-valuation', element: <PlaceholderPage /> },
-          { path: '/reports/inventory-movement', element: <PlaceholderPage /> },
-          { path: '/reports/ar-aging', element: <PlaceholderPage /> },
-          { path: '/reports/cheque-calendar', element: <PlaceholderPage /> },
+          { path: '/reports/profit', element: <ProfitPage /> },
+          { path: '/reports/stock-valuation', element: <StockValuationPage /> },
+          { path: '/reports/inventory-movement', element: <InventoryMovementPage /> },
+          { path: '/reports/ar-aging', element: <ArAgingPage /> },
+          { path: '/reports/cheque-calendar', element: <ChequeCalendarPage /> },
           { path: '/reports/sales-summary', element: <SalesSummaryPage /> },
           { path: '/reports/z-report', element: <ZReportPage /> },
           { path: '/reports/cash-flow', element: <CashFlowPage /> },
@@ -85,11 +103,13 @@ export const router = createBrowserRouter([
           { path: '/customer-cheques', element: <CustomerChequesListPage /> },
 
           // F10 — Marketing & Admin
-          { path: '/quotations', element: <PlaceholderPage /> },
-          { path: '/loyalty', element: <PlaceholderPage /> },
-          { path: '/users', element: <PlaceholderPage /> },
-          { path: '/settings', element: <PlaceholderPage /> },
-          { path: '/audit-logs', element: <PlaceholderPage /> },
+          { path: '/quotations', element: <QuotationsListPage /> },
+          { path: '/quotations/new', element: <QuotationFormPage /> },
+          { path: '/quotations/:id/edit', element: <QuotationFormPage /> },
+          { path: '/loyalty', element: <LoyaltyPage /> },
+          { path: '/users', element: <UsersListPage /> },
+          { path: '/settings', element: <SettingsListPage /> },
+          { path: '/audit-logs', element: <AuditLogsListPage /> },
         ],
       },
     ],

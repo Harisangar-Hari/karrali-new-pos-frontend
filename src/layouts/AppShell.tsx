@@ -22,6 +22,8 @@ import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
 import { useNavItems } from '@/hooks/useNavItems';
 import { flatLeafKeys } from '@/config/nav';
+import { ChangeOwnPasswordModal } from '@/pages/users/ChangeOwnPasswordModal';
+import { KeyRound } from 'lucide-react';
 
 const { Header, Sider, Content } = Layout;
 const { useBreakpoint } = Grid;
@@ -45,6 +47,7 @@ function pickSelectedKey(pathname: string, leafKeys: string[]): string[] {
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const screens = useBreakpoint();
   const isMobile = !screens.md; // < 768px
 
@@ -88,6 +91,13 @@ export function AppShell() {
       },
       { type: 'divider' as const },
       {
+        key: 'change-password',
+        icon: <KeyRound size={14} />,
+        label: 'Change password',
+        onClick: () => setChangePasswordOpen(true),
+      },
+      { type: 'divider' as const },
+      {
         key: 'logout',
         icon: <LogOut size={14} />,
         label: 'Sign out',
@@ -104,7 +114,7 @@ export function AppShell() {
       selectedKeys={selectedKeys}
       onClick={({ key }) => navigate(key)}
       items={menuItems}
-      style={{ borderInlineEnd: 'none' }}
+      style={{ borderInlineEnd: 'none', }}
     />
   );
 
@@ -136,15 +146,31 @@ export function AppShell() {
           width={240}
           breakpoint="md"
           style={{
-            overflowY: 'auto',
             height: '100vh',
             position: 'sticky',
             top: 0,
             insetInlineStart: 0,
           }}
         >
-          {brand}
-          {navMenu}
+          <Flex
+            vertical
+            style={{
+              height: '100%',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ flexShrink: 0 }}>{brand}</div>
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                overflowX: 'hidden',
+              }}
+              className="app-shell-nav-scroll"
+            >
+              {navMenu}
+            </div>
+          </Flex>
         </Sider>
       )}
 
@@ -219,6 +245,10 @@ export function AppShell() {
           <Outlet />
         </Content>
       </Layout>
+      <ChangeOwnPasswordModal
+        open={changePasswordOpen}
+        onClose={() => setChangePasswordOpen(false)}
+      />
     </Layout>
   );
 }

@@ -34,6 +34,21 @@ body {
   overflow-x: hidden;
 }
 
+/* Sidebar nav — hide scrollbar entirely, keep scroll functionality */
+.app-shell-nav-scroll {
+  /* Firefox */
+  scrollbar-width: none;
+  /* IE / old Edge */
+  -ms-overflow-style: none;
+}
+
+.app-shell-nav-scroll::-webkit-scrollbar {
+  /* Chrome / Safari / new Edge */
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* POS product result row hover */
 .pos-product-row:hover {
   background: #f0fdfa;

@@ -37,6 +37,7 @@ import { DollarSign } from 'lucide-react';
 import { CreateCreditPaymentDrawer } from '@/pages/credit-payments/CreateCreditPaymentDrawer';
 import { CustomerPaymentsTab } from './CustomerPaymentsTab';
 import { CustomerChequesTab } from './CustomerChequesTab';
+import { CustomerLoyaltyTab } from './CustomerLoyaltyTab';
 
 const { useBreakpoint } = Grid;
 
@@ -192,6 +193,11 @@ export function CustomerDetailPage() {
                             key: 'cheques',
                             label: 'Cheques',
                             children: id ? <CustomerChequesTab customerId={id} /> : null,
+                        },
+                        {
+                            key: 'loyalty',
+                            label: 'Loyalty',
+                            children: id ? <CustomerLoyaltyTab customerId={id} /> : null,
                         },
                     ]}
                 />

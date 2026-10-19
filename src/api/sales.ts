@@ -37,3 +37,12 @@ export async function getSale(id: string): Promise<SaleDetail> {
   const { data } = await api.get<SaleDetail>(`/sales/${id}`);
   return data;
 }
+export async function cancelSale(
+  id: string,
+  reason: string,
+): Promise<SaleDetail> {
+  const { data } = await api.post<SaleDetail>(`/sales/${id}/cancel`, {
+    Reason: reason,
+  });
+  return data;
+}

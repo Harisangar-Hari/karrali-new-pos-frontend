@@ -55,7 +55,20 @@ export function useNavItems(): MenuItem[] {
 
   return useMemo(() => {
     const filtered = filterTree(NAV_TREE, perms);
-    return toMenuItems(filtered);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const items = toMenuItems(filtered);
+
+    // 🔍 Temporary debug — remove after we find the issue
+    const adminGroup = filtered.find((n) => n.key === 'group-admin');
+    console.log('[useNavItems] perms length:', perms.length);
+    console.log('[useNavItems] has audit.view:', perms.includes('audit.view'));
+    console.log('[useNavItems] admin group children:', adminGroup?.children?.map((c) => c.key));
+    console.log('[useNavItems] has NAV_TREE audit-logs:',
+      NAV_TREE.some(
+        (g) => g.key === 'group-admin' &&
+          g.children?.some((c) => c.key === '/audit-logs')
+      )
+    );
+
+    return items;
   }, [userId, perms]);
 }
