@@ -108,3 +108,38 @@ export type ProductSortField =
   | 'CostPrice'
   | 'CreatedAt'
   | 'UpdatedAt';
+
+
+
+// ─── Bulk import ────────────────────────────────────────────────
+
+export interface ImportProductRow {
+  Name: string;
+  SKU?: string;
+  Barcode?: string;
+  CategoryName: string;
+  BrandName?: string;
+  Price: number;
+  CostPrice: number;
+  Unit?: string;
+  Description?: string;
+  Discount?: number;
+  TaxRate?: number;
+  ReorderLevel?: number;
+  WarrantyMonths?: number;
+  IsActive?: boolean;
+  InitialQty?: number;
+  InitialWarehouseCode?: string;
+}
+
+export interface ImportProductsInput {
+  Rows: ImportProductRow[];
+}
+
+export interface ImportProductsResult {
+  Total: number;
+  Created: number;
+  Updated: number;
+  CategoriesCreated: number;
+  BrandsCreated: number;
+}

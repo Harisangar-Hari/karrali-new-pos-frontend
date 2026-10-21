@@ -8,11 +8,13 @@ import {
   createProduct,
   deleteProduct,
   getProduct,
+  importProducts,
   listProducts,
   updateProduct,
 } from '@/api/products';
 import type {
   CreateProductInput,
+  ImportProductsInput,
   QueryProductParams,
   UpdateProductInput,
 } from '@/types/product';
@@ -59,6 +61,18 @@ export function useDeleteProduct() {
     mutationFn: (id: string) => deleteProduct(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.products.all });
+    },
+  });
+}
+
+export function useImportProducts() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ImportProductsInput) => importProducts(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.products.all });
+      qc.invalidateQueries({ queryKey: qk.categories.all });
+      qc.invalidateQueries({ queryKey: qk.brands.all });
     },
   });
 }

@@ -29,6 +29,7 @@ import {
   AlertTriangle,
   Printer,
   Warehouse as WarehouseIcon,
+  Upload as UploadIcon,
 } from 'lucide-react';
 import { useDeleteProduct, useProducts } from '@/hooks/queries/useProducts';
 import {
@@ -39,6 +40,11 @@ import {
 import { usePermission } from '@/hooks/usePermission';
 import { ProductFormDrawer } from './ProductFormDrawer';
 import { ProductDetailDrawer } from './ProductDetailDrawer';
+import { ImportProductsModal } from './ImportProductsModal';
+import {
+  PrintBarcodeModal,
+  type PrintBarcodeTarget,
+} from '@/components/PrintBarcodeModal';
 import { formatMoney } from '@/lib/format';
 import { getErrorMessage } from '@/lib/api';
 import { printBarcodeLabels } from '@/utils/printBarcode';
@@ -134,6 +140,11 @@ export function ProductsListPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ProductListRow | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [printTarget, setPrintTarget] = useState<{
+    rows: ProductListRow[];
+    mode: 'single' | 'bulk';
+  } | null>(null);
 
   const selectedWarehouse = warehouses.find((w) => w.Id === warehouseId);
 
@@ -185,22 +196,15 @@ export function ProductsListPage() {
     setPage(1);
   };
 
-  const printOne = (row: ProductListRow) => {
+  const requestPrintOne = (row: ProductListRow) => {
     if (!row.Barcode) {
       message.warning('This product has no barcode — add one first.');
       return;
     }
-    printBarcodeLabels([
-      {
-        productName: row.Name,
-        barcode: row.Barcode,
-        price: Number(row.Price),
-        copies: 1,
-      },
-    ]);
+    setPrintTarget({ rows: [row], mode: 'single' });
   };
 
-  const printSelected = () => {
+  const requestPrintSelected = () => {
     if (!data) return;
     const rows = data.data.filter((r) => selectedRowKeys.includes(r.Id));
     const withBarcode = rows.filter((r) => r.Barcode);
@@ -213,15 +217,29 @@ export function ProductsListPage() {
         `${rows.length - withBarcode.length} product(s) skipped — no barcode.`,
       );
     }
+    setPrintTarget({ rows: withBarcode, mode: 'bulk' });
+  };
+
+  const handlePrintConfirm = (copies: number) => {
+    if (!printTarget) return;
     printBarcodeLabels(
-      withBarcode.map((r) => ({
+      printTarget.rows.map((r) => ({
         productName: r.Name,
         barcode: r.Barcode!,
         price: Number(r.Price),
-        copies: 1,
+        copies,
       })),
     );
+    setPrintTarget(null);
   };
+
+  const modalTarget: PrintBarcodeTarget | null = printTarget?.rows[0]
+    ? {
+      productName: printTarget.rows[0].Name,
+      barcode: printTarget.rows[0].Barcode ?? '',
+      price: Number(printTarget.rows[0].Price),
+    }
+    : null;
 
   const columns: ColumnsType<ProductListRow> = useMemo(
     () => [
@@ -287,8 +305,6 @@ export function ProductsListPage() {
               </Typography.Text>
             </Flex>
           );
-          // When the warehouse filter is active, add a subtle badge so
-          // it's obvious the number is scoped.
           return selectedWarehouse ? (
             <Tooltip title={`Qty in ${selectedWarehouse.Name}`}>
               {content}
@@ -345,7 +361,7 @@ export function ProductsListPage() {
                 size="small"
                 icon={<Printer size={14} />}
                 disabled={!row.Barcode}
-                onClick={() => printOne(row)}
+                onClick={() => requestPrintOne(row)}
               />
             </Tooltip>
             {canUpdate && (
@@ -435,7 +451,7 @@ export function ProductsListPage() {
                     size="small"
                     icon={<Printer size={14} />}
                     disabled={!row.Barcode}
-                    onClick={() => printOne(row)}
+                    onClick={() => requestPrintOne(row)}
                   />
                   {canUpdate && (
                     <Button
@@ -488,9 +504,20 @@ export function ProductsListPage() {
         </Typography.Title>
         <Flex gap={8} wrap="wrap">
           {selectedRowKeys.length > 0 && (
-            <Button icon={<Printer size={16} />} onClick={printSelected}>
+            <Button
+              icon={<Printer size={16} />}
+              onClick={requestPrintSelected}
+            >
               Print {selectedRowKeys.length} barcode
               {selectedRowKeys.length === 1 ? '' : 's'}
+            </Button>
+          )}
+          {canCreate && (
+            <Button
+              icon={<UploadIcon size={16} />}
+              onClick={() => setImportOpen(true)}
+            >
+              {isMobile ? 'Import' : 'Import from Excel'}
             </Button>
           )}
           {canCreate && (
@@ -547,9 +574,6 @@ export function ProductsListPage() {
               value={warehouseId}
               onChange={(v) => {
                 setWarehouseId(v);
-                // If we clear the warehouse, the "in stock only" toggle
-                // becomes meaningless in the current scope — leave it on
-                // but it now means "in stock anywhere".
                 setPage(1);
               }}
               placeholder="All warehouses"
@@ -673,6 +697,17 @@ export function ProductsListPage() {
       <ProductDetailDrawer
         productId={detailId}
         onClose={() => setDetailId(null)}
+      />
+      <PrintBarcodeModal
+        open={!!printTarget}
+        target={modalTarget}
+        totalProducts={printTarget?.rows.length ?? 1}
+        onConfirm={handlePrintConfirm}
+        onCancel={() => setPrintTarget(null)}
+      />
+      <ImportProductsModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
       />
     </Flex>
   );

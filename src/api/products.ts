@@ -2,6 +2,8 @@ import { api } from '@/lib/api';
 import type { PaginatedResponse } from '@/types/common';
 import type {
   CreateProductInput,
+  ImportProductsInput,
+  ImportProductsResult,
   ProductDetail,
   ProductListRow,
   QueryProductParams,
@@ -57,5 +59,15 @@ export async function updateProduct(
 
 export async function deleteProduct(id: string): Promise<{ ok: true }> {
   const { data } = await api.delete<{ ok: true }>(`/products/${id}`);
+  return data;
+}
+
+export async function importProducts(
+  input: ImportProductsInput,
+): Promise<ImportProductsResult> {
+  const { data } = await api.post<ImportProductsResult>(
+    '/products/import',
+    input,
+  );
   return data;
 }

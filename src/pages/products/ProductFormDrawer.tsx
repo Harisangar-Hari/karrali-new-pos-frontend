@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Drawer,
   
@@ -15,7 +15,8 @@ import {
   Skeleton,
   Table,
   Empty,
-
+  
+  
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { Controller, useForm } from 'react-hook-form';
@@ -33,6 +34,10 @@ import {
   useWarehousesLookup,
 } from '@/hooks/queries/useLookups';
 import { BarcodePreview } from '@/components/BarcodePreview';
+import {
+  PrintBarcodeModal,
+  type PrintBarcodeTarget,
+} from '@/components/PrintBarcodeModal';
 import { generateEan13 } from '@/utils/barcode';
 import { printBarcodeLabels } from '@/utils/printBarcode';
 import { getErrorMessage } from '@/lib/api';
@@ -153,6 +158,10 @@ export function ProductFormDrawer({ open, product, onClose }: Props) {
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct(product?.Id ?? '');
 
+  const [printTarget, setPrintTarget] = useState<PrintBarcodeTarget | null>(
+    null,
+  );
+
   const {
     control,
     handleSubmit,
@@ -172,19 +181,28 @@ export function ProductFormDrawer({ open, product, onClose }: Props) {
   const submitting =
     isSubmitting || createMutation.isPending || updateMutation.isPending;
 
-  const handlePrintBarcode = () => {
+  const handlePrintClick = () => {
     const barcode = getValues('Barcode');
     if (!barcode || !barcode.trim()) return;
-    const name = getValues('Name') || 'Product';
     const price = getValues('Price');
+    setPrintTarget({
+      productName: getValues('Name') || 'Product',
+      barcode: barcode.trim(),
+      price: price > 0 ? price : undefined,
+    });
+  };
+
+  const handlePrintConfirm = (copies: number) => {
+    if (!printTarget) return;
     printBarcodeLabels([
       {
-        productName: name,
-        barcode: barcode.trim(),
-        price: price > 0 ? price : undefined,
-        copies: 1,
+        productName: printTarget.productName,
+        barcode: printTarget.barcode,
+        price: printTarget.price,
+        copies,
       },
     ]);
+    setPrintTarget(null);
   };
 
   const onSubmit = async (values: ProductForm) => {
@@ -260,471 +278,480 @@ export function ProductFormDrawer({ open, product, onClose }: Props) {
   ];
 
   return (
-    <Drawer
-      title={isEdit ? 'Edit product' : 'New product'}
-      open={open}
-      onClose={submitting ? undefined : onClose}
-      width={isMobile ? '100%' : 520}
-      destroyOnClose
-      maskClosable={!submitting}
-      extra={
-        <Flex gap={8}>
-          <Button onClick={onClose} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button
-            type="primary"
-            loading={submitting}
-            onClick={handleSubmit(onSubmit)}
-          >
-            {isEdit ? 'Save changes' : 'Create product'}
-          </Button>
-        </Flex>
-      }
-    >
-      <form onSubmit={handleSubmit(onSubmit)} noValidate>
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Fields marked with * are required.
-        </Typography.Text>
+    <>
+      <Drawer
+        title={isEdit ? 'Edit product' : 'New product'}
+        open={open}
+        onClose={submitting ? undefined : onClose}
+        width={isMobile ? '100%' : 520}
+        destroyOnClose
+        maskClosable={!submitting}
+        extra={
+          <Flex gap={8}>
+            <Button onClick={onClose} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button
+              type="primary"
+              loading={submitting}
+              onClick={handleSubmit(onSubmit)}
+            >
+              {isEdit ? 'Save changes' : 'Create product'}
+            </Button>
+          </Flex>
+        }
+      >
+        <form onSubmit={handleSubmit(onSubmit)} noValidate>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Fields marked with * are required.
+          </Typography.Text>
 
-        <Divider orientation="left" plain>
-          Basics
-        </Divider>
+          <Divider orientation="left" plain>
+            Basics
+          </Divider>
 
-        <Field label="Name *">
-          <Controller
-            name="Name"
-            control={control}
-            render={({ field, fieldState }) => (
-              <>
-                <Input
-                  {...field}
-                  placeholder="e.g. Coca-Cola 500ml"
-                  status={fieldState.error ? 'error' : undefined}
-                />
-                <div style={ERR_STYLE}>{fieldState.error?.message ?? ''}</div>
-              </>
-            )}
-          />
-        </Field>
+          <Field label="Name *">
+            <Controller
+              name="Name"
+              control={control}
+              render={({ field, fieldState }) => (
+                <>
+                  <Input
+                    {...field}
+                    placeholder="e.g. Coca-Cola 500ml"
+                    status={fieldState.error ? 'error' : undefined}
+                  />
+                  <div style={ERR_STYLE}>{fieldState.error?.message ?? ''}</div>
+                </>
+              )}
+            />
+          </Field>
 
-        <Flex gap={12} wrap="wrap">
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <Field label="SKU">
-              <Controller
-                name="SKU"
-                control={control}
-                render={({ field, fieldState }) => (
-                  <>
-                    <Input
-                      {...field}
-                      value={field.value ?? ''}
-                      placeholder="Optional"
-                      status={fieldState.error ? 'error' : undefined}
-                    />
-                    <div style={ERR_STYLE}>
-                      {fieldState.error?.message ?? ''}
-                    </div>
-                  </>
-                )}
-              />
-            </Field>
-          </div>
-
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <Field label="Barcode">
-              <Controller
-                name="Barcode"
-                control={control}
-                render={({ field, fieldState }) => (
-                  <>
-                    <Flex gap={4}>
+          <Flex gap={12} wrap="wrap">
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <Field label="SKU">
+                <Controller
+                  name="SKU"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <>
                       <Input
                         {...field}
                         value={field.value ?? ''}
-                        placeholder="Optional — or generate one"
+                        placeholder="Optional"
                         status={fieldState.error ? 'error' : undefined}
                       />
-                      <Button
-                        icon={<Wand2 size={14} />}
-                        onClick={() => field.onChange(generateEan13())}
-                        title="Auto-generate EAN-13"
-                      >
-                        Gen
-                      </Button>
-                      <Button
-                        icon={<Printer size={14} />}
-                        disabled={!field.value || !field.value.trim()}
-                        onClick={handlePrintBarcode}
-                        title="Print this barcode label"
-                      />
-                    </Flex>
-                    <div style={ERR_STYLE}>
-                      {fieldState.error?.message ?? ''}
-                    </div>
-                    {field.value && field.value.trim() && (
-                      <div style={{ marginTop: 8 }}>
-                        <BarcodePreview value={field.value} height={50} />
+                      <div style={ERR_STYLE}>
+                        {fieldState.error?.message ?? ''}
                       </div>
-                    )}
-                  </>
-                )}
-              />
-            </Field>
-          </div>
-        </Flex>
-
-        <Field label="Description">
-          <Controller
-            name="Description"
-            control={control}
-            render={({ field }) => (
-              <Input.TextArea
-                {...field}
-                value={field.value ?? ''}
-                rows={2}
-                maxLength={2000}
-              />
-            )}
-          />
-        </Field>
-
-        <Divider orientation="left" plain>
-          Classification
-        </Divider>
-
-        <Field label="Category *">
-          <Controller
-            name="CategoryId"
-            control={control}
-            render={({ field, fieldState }) => (
-              <>
-                <Select
-                  {...field}
-                  value={field.value || undefined}
-                  loading={catLoading}
-                  placeholder="Pick a category"
-                  options={categoryOptions}
-                  showSearch
-                  optionFilterProp="label"
-                  status={fieldState.error ? 'error' : undefined}
+                    </>
+                  )}
                 />
-                <div style={ERR_STYLE}>{fieldState.error?.message ?? ''}</div>
-              </>
-            )}
-          />
-        </Field>
+              </Field>
+            </div>
 
-        <Field label="Brand">
-          <Controller
-            name="BrandId"
-            control={control}
-            render={({ field }) => (
-              <Select
-                value={field.value || undefined}
-                onChange={(v) => field.onChange(v ?? '')}
-                loading={brandLoading}
-                placeholder="Optional"
-                options={brandOptions}
-                allowClear
-                showSearch
-                optionFilterProp="label"
-              />
-            )}
-          />
-        </Field>
-
-        <Field label="Unit">
-          <Controller
-            name="Unit"
-            control={control}
-            render={({ field }) => (
-              <Input {...field} value={field.value ?? ''} placeholder="pcs" />
-            )}
-          />
-        </Field>
-
-        <Divider orientation="left" plain>
-          Pricing
-        </Divider>
-
-        <Flex gap={12} wrap="wrap">
-          <div style={{ flex: 1, minWidth: 140 }}>
-            <Field label="Selling price *">
-              <Controller
-                name="Price"
-                control={control}
-                render={({ field, fieldState }) => (
-                  <>
-                    <InputNumber
-                      value={field.value}
-                      onChange={(v) => field.onChange(v ?? 0)}
-                      min={0}
-                      precision={4}
-                      step={0.01}
-                      style={{ width: '100%' }}
-                      status={fieldState.error ? 'error' : undefined}
-                    />
-                    <div style={ERR_STYLE}>
-                      {fieldState.error?.message ?? ''}
-                    </div>
-                  </>
-                )}
-              />
-            </Field>
-          </div>
-          <div style={{ flex: 1, minWidth: 140 }}>
-            <Field label="Cost price *">
-              <Controller
-                name="CostPrice"
-                control={control}
-                render={({ field, fieldState }) => (
-                  <>
-                    <InputNumber
-                      value={field.value}
-                      onChange={(v) => field.onChange(v ?? 0)}
-                      min={0}
-                      precision={4}
-                      step={0.01}
-                      style={{ width: '100%' }}
-                      status={fieldState.error ? 'error' : undefined}
-                    />
-                    <div style={ERR_STYLE}>
-                      {fieldState.error?.message ?? ''}
-                    </div>
-                  </>
-                )}
-              />
-            </Field>
-          </div>
-        </Flex>
-
-        <Flex gap={12} wrap="wrap">
-          <div style={{ flex: 1, minWidth: 140 }}>
-            <Field label="Discount %">
-              <Controller
-                name="Discount"
-                control={control}
-                render={({ field }) => (
-                  <InputNumber
-                    value={field.value ?? 0}
-                    onChange={(v) => field.onChange(v ?? 0)}
-                    min={0}
-                    max={100}
-                    precision={2}
-                    step={0.5}
-                    style={{ width: '100%' }}
-                  />
-                )}
-              />
-            </Field>
-          </div>
-          <div style={{ flex: 1, minWidth: 140 }}>
-            <Field label="Tax rate %">
-              <Controller
-                name="TaxRate"
-                control={control}
-                render={({ field }) => (
-                  <InputNumber
-                    value={field.value ?? null}
-                    onChange={(v) => field.onChange(v ?? null)}
-                    min={0}
-                    max={100}
-                    precision={2}
-                    step={0.5}
-                    style={{ width: '100%' }}
-                    placeholder="No tax"
-                  />
-                )}
-              />
-            </Field>
-          </div>
-        </Flex>
-
-        <Divider orientation="left" plain>
-          Stock & Warranty
-        </Divider>
-
-        <Flex gap={12} wrap="wrap">
-          <div style={{ flex: 1, minWidth: 140 }}>
-            <Field label="Reorder level">
-              <Controller
-                name="ReorderLevel"
-                control={control}
-                render={({ field }) => (
-                  <InputNumber
-                    value={field.value ?? 0}
-                    onChange={(v) => field.onChange(v ?? 0)}
-                    min={0}
-                    precision={0}
-                    style={{ width: '100%' }}
-                  />
-                )}
-              />
-            </Field>
-          </div>
-          <div style={{ flex: 1, minWidth: 140 }}>
-            <Field label="Warranty (months)">
-              <Controller
-                name="WarrantyMonths"
-                control={control}
-                render={({ field }) => (
-                  <InputNumber
-                    value={field.value ?? 0}
-                    onChange={(v) => field.onChange(v ?? 0)}
-                    min={0}
-                    precision={0}
-                    style={{ width: '100%' }}
-                  />
-                )}
-              />
-            </Field>
-          </div>
-        </Flex>
-
-        {!isEdit && (
-          <>
-            <Divider orientation="left" plain>
-              Opening stock (optional)
-            </Divider>
-            <Typography.Paragraph
-              type="secondary"
-              style={{ fontSize: 12, marginTop: -4 }}
-            >
-              If you enter a quantity, pick a warehouse. Writes an OPENING
-              stock movement.
-            </Typography.Paragraph>
-
-            <Flex gap={12} wrap="wrap">
-              <div style={{ flex: 1, minWidth: 140 }}>
-                <Field label="Initial qty">
-                  <Controller
-                    name="InitialQty"
-                    control={control}
-                    render={({ field }) => (
-                      <InputNumber
-                        value={field.value ?? 0}
-                        onChange={(v) => field.onChange(v ?? 0)}
-                        min={0}
-                        precision={0}
-                        style={{ width: '100%' }}
-                      />
-                    )}
-                  />
-                </Field>
-              </div>
-              <div style={{ flex: 1, minWidth: 200 }}>
-                <Field label="Warehouse">
-                  <Controller
-                    name="InitialWarehouseId"
-                    control={control}
-                    render={({ field }) => (
-                      <Select
-                        value={field.value || undefined}
-                        onChange={(v) => field.onChange(v ?? '')}
-                        loading={whLoading}
-                        placeholder="Pick a warehouse"
-                        options={warehouseOptions}
-                        allowClear
-                        showSearch
-                        optionFilterProp="label"
-                      />
-                    )}
-                  />
-                </Field>
-              </div>
-            </Flex>
-          </>
-        )}
-
-        {isEdit && (
-          <>
-            <Divider orientation="left" plain>
-              Current stock
-            </Divider>
-
-            {detailLoading || !detail ? (
-              <Skeleton active paragraph={{ rows: 3 }} />
-            ) : detail.WarehouseStocks.length === 0 ? (
-              <Empty
-                description="No stock in any warehouse"
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                style={{ margin: '12px 0' }}
-              />
-            ) : (
-              <>
-                <Table<WarehouseStockRow>
-                  dataSource={detail.WarehouseStocks}
-                  rowKey="Id"
-                  columns={stockColumns}
-                  size="small"
-                  pagination={false}
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <Field label="Barcode">
+                <Controller
+                  name="Barcode"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <>
+                      <Flex gap={4}>
+                        <Input
+                          {...field}
+                          value={field.value ?? ''}
+                          placeholder="Optional — or generate one"
+                          status={fieldState.error ? 'error' : undefined}
+                        />
+                        <Button
+                          icon={<Wand2 size={14} />}
+                          onClick={() => field.onChange(generateEan13())}
+                          title="Auto-generate EAN-13"
+                        >
+                          Gen
+                        </Button>
+                        <Button
+                          icon={<Printer size={14} />}
+                          disabled={!field.value || !field.value.trim()}
+                          onClick={handlePrintClick}
+                          title="Print this barcode label"
+                        />
+                      </Flex>
+                      <div style={ERR_STYLE}>
+                        {fieldState.error?.message ?? ''}
+                      </div>
+                      {field.value && field.value.trim() && (
+                        <div style={{ marginTop: 8 }}>
+                          <BarcodePreview value={field.value} height={50} />
+                        </div>
+                      )}
+                    </>
+                  )}
                 />
-                <Flex
-                  justify="space-between"
-                  style={{ marginTop: 8, padding: '6px 0' }}
-                >
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    Total
-                  </Typography.Text>
-                  <Typography.Text strong>
-                    {formatQty(
-                      detail.WarehouseStocks.reduce(
-                        (s, ws) => s + ws.Qty,
-                        0,
-                      ),
-                      0,
-                    )}
-                  </Typography.Text>
-                </Flex>
-              </>
-            )}
+              </Field>
+            </div>
+          </Flex>
 
-            <Typography.Paragraph
-              type="secondary"
-              style={{ fontSize: 11, marginTop: 8 }}
-            >
-              Stock changes go through the Stock module — this is a read-only
-              view.
-            </Typography.Paragraph>
-          </>
-        )}
-
-        <Divider orientation="left" plain>
-          Media & status
-        </Divider>
-
-        <Field label="Image URL">
-          <Controller
-            name="ImageUrl"
-            control={control}
-            render={({ field, fieldState }) => (
-              <>
-                <Input
+          <Field label="Description">
+            <Controller
+              name="Description"
+              control={control}
+              render={({ field }) => (
+                <Input.TextArea
                   {...field}
                   value={field.value ?? ''}
-                  placeholder="https://…"
-                  status={fieldState.error ? 'error' : undefined}
+                  rows={2}
+                  maxLength={2000}
                 />
-                <div style={ERR_STYLE}>{fieldState.error?.message ?? ''}</div>
-              </>
-            )}
-          />
-        </Field>
+              )}
+            />
+          </Field>
 
-        <Field label="Active">
-          <Controller
-            name="IsActive"
-            control={control}
-            render={({ field }) => (
-              <Switch checked={field.value} onChange={field.onChange} />
-            )}
-          />
-        </Field>
+          <Divider orientation="left" plain>
+            Classification
+          </Divider>
 
-        <div style={{ height: 24 }} />
-      </form>
-    </Drawer>
+          <Field label="Category *">
+            <Controller
+              name="CategoryId"
+              control={control}
+              render={({ field, fieldState }) => (
+                <>
+                  <Select
+                    {...field}
+                    value={field.value || undefined}
+                    loading={catLoading}
+                    placeholder="Pick a category"
+                    options={categoryOptions}
+                    showSearch
+                    optionFilterProp="label"
+                    status={fieldState.error ? 'error' : undefined}
+                  />
+                  <div style={ERR_STYLE}>{fieldState.error?.message ?? ''}</div>
+                </>
+              )}
+            />
+          </Field>
+
+          <Field label="Brand">
+            <Controller
+              name="BrandId"
+              control={control}
+              render={({ field }) => (
+                <Select
+                  value={field.value || undefined}
+                  onChange={(v) => field.onChange(v ?? '')}
+                  loading={brandLoading}
+                  placeholder="Optional"
+                  options={brandOptions}
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                />
+              )}
+            />
+          </Field>
+
+          <Field label="Unit">
+            <Controller
+              name="Unit"
+              control={control}
+              render={({ field }) => (
+                <Input {...field} value={field.value ?? ''} placeholder="pcs" />
+              )}
+            />
+          </Field>
+
+          <Divider orientation="left" plain>
+            Pricing
+          </Divider>
+
+          <Flex gap={12} wrap="wrap">
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <Field label="Selling price *">
+                <Controller
+                  name="Price"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <>
+                      <InputNumber
+                        value={field.value}
+                        onChange={(v) => field.onChange(v ?? 0)}
+                        min={0}
+                        precision={4}
+                        step={0.01}
+                        style={{ width: '100%' }}
+                        status={fieldState.error ? 'error' : undefined}
+                      />
+                      <div style={ERR_STYLE}>
+                        {fieldState.error?.message ?? ''}
+                      </div>
+                    </>
+                  )}
+                />
+              </Field>
+            </div>
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <Field label="Cost price *">
+                <Controller
+                  name="CostPrice"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <>
+                      <InputNumber
+                        value={field.value}
+                        onChange={(v) => field.onChange(v ?? 0)}
+                        min={0}
+                        precision={4}
+                        step={0.01}
+                        style={{ width: '100%' }}
+                        status={fieldState.error ? 'error' : undefined}
+                      />
+                      <div style={ERR_STYLE}>
+                        {fieldState.error?.message ?? ''}
+                      </div>
+                    </>
+                  )}
+                />
+              </Field>
+            </div>
+          </Flex>
+
+          <Flex gap={12} wrap="wrap">
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <Field label="Discount %">
+                <Controller
+                  name="Discount"
+                  control={control}
+                  render={({ field }) => (
+                    <InputNumber
+                      value={field.value ?? 0}
+                      onChange={(v) => field.onChange(v ?? 0)}
+                      min={0}
+                      max={100}
+                      precision={2}
+                      step={0.5}
+                      style={{ width: '100%' }}
+                    />
+                  )}
+                />
+              </Field>
+            </div>
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <Field label="Tax rate %">
+                <Controller
+                  name="TaxRate"
+                  control={control}
+                  render={({ field }) => (
+                    <InputNumber
+                      value={field.value ?? null}
+                      onChange={(v) => field.onChange(v ?? null)}
+                      min={0}
+                      max={100}
+                      precision={2}
+                      step={0.5}
+                      style={{ width: '100%' }}
+                      placeholder="No tax"
+                    />
+                  )}
+                />
+              </Field>
+            </div>
+          </Flex>
+
+          <Divider orientation="left" plain>
+            Stock & Warranty
+          </Divider>
+
+          <Flex gap={12} wrap="wrap">
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <Field label="Reorder level">
+                <Controller
+                  name="ReorderLevel"
+                  control={control}
+                  render={({ field }) => (
+                    <InputNumber
+                      value={field.value ?? 0}
+                      onChange={(v) => field.onChange(v ?? 0)}
+                      min={0}
+                      precision={0}
+                      style={{ width: '100%' }}
+                    />
+                  )}
+                />
+              </Field>
+            </div>
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <Field label="Warranty (months)">
+                <Controller
+                  name="WarrantyMonths"
+                  control={control}
+                  render={({ field }) => (
+                    <InputNumber
+                      value={field.value ?? 0}
+                      onChange={(v) => field.onChange(v ?? 0)}
+                      min={0}
+                      precision={0}
+                      style={{ width: '100%' }}
+                    />
+                  )}
+                />
+              </Field>
+            </div>
+          </Flex>
+
+          {!isEdit && (
+            <>
+              <Divider orientation="left" plain>
+                Opening stock (optional)
+              </Divider>
+              <Typography.Paragraph
+                type="secondary"
+                style={{ fontSize: 12, marginTop: -4 }}
+              >
+                If you enter a quantity, pick a warehouse. Writes an OPENING
+                stock movement.
+              </Typography.Paragraph>
+
+              <Flex gap={12} wrap="wrap">
+                <div style={{ flex: 1, minWidth: 140 }}>
+                  <Field label="Initial qty">
+                    <Controller
+                      name="InitialQty"
+                      control={control}
+                      render={({ field }) => (
+                        <InputNumber
+                          value={field.value ?? 0}
+                          onChange={(v) => field.onChange(v ?? 0)}
+                          min={0}
+                          precision={0}
+                          style={{ width: '100%' }}
+                        />
+                      )}
+                    />
+                  </Field>
+                </div>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <Field label="Warehouse">
+                    <Controller
+                      name="InitialWarehouseId"
+                      control={control}
+                      render={({ field }) => (
+                        <Select
+                          value={field.value || undefined}
+                          onChange={(v) => field.onChange(v ?? '')}
+                          loading={whLoading}
+                          placeholder="Pick a warehouse"
+                          options={warehouseOptions}
+                          allowClear
+                          showSearch
+                          optionFilterProp="label"
+                        />
+                      )}
+                    />
+                  </Field>
+                </div>
+              </Flex>
+            </>
+          )}
+
+          {isEdit && (
+            <>
+              <Divider orientation="left" plain>
+                Current stock
+              </Divider>
+
+              {detailLoading || !detail ? (
+                <Skeleton active paragraph={{ rows: 3 }} />
+              ) : detail.WarehouseStocks.length === 0 ? (
+                <Empty
+                  description="No stock in any warehouse"
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  style={{ margin: '12px 0' }}
+                />
+              ) : (
+                <>
+                  <Table<WarehouseStockRow>
+                    dataSource={detail.WarehouseStocks}
+                    rowKey="Id"
+                    columns={stockColumns}
+                    size="small"
+                    pagination={false}
+                  />
+                  <Flex
+                    justify="space-between"
+                    style={{ marginTop: 8, padding: '6px 0' }}
+                  >
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      Total
+                    </Typography.Text>
+                    <Typography.Text strong>
+                      {formatQty(
+                        detail.WarehouseStocks.reduce(
+                          (s, ws) => s + ws.Qty,
+                          0,
+                        ),
+                        0,
+                      )}
+                    </Typography.Text>
+                  </Flex>
+                </>
+              )}
+
+              <Typography.Paragraph
+                type="secondary"
+                style={{ fontSize: 11, marginTop: 8 }}
+              >
+                Stock changes go through the Stock module — this is a read-only
+                view.
+              </Typography.Paragraph>
+            </>
+          )}
+
+          <Divider orientation="left" plain>
+            Media & status
+          </Divider>
+
+          <Field label="Image URL">
+            <Controller
+              name="ImageUrl"
+              control={control}
+              render={({ field, fieldState }) => (
+                <>
+                  <Input
+                    {...field}
+                    value={field.value ?? ''}
+                    placeholder="https://…"
+                    status={fieldState.error ? 'error' : undefined}
+                  />
+                  <div style={ERR_STYLE}>{fieldState.error?.message ?? ''}</div>
+                </>
+              )}
+            />
+          </Field>
+
+          <Field label="Active">
+            <Controller
+              name="IsActive"
+              control={control}
+              render={({ field }) => (
+                <Switch checked={field.value} onChange={field.onChange} />
+              )}
+            />
+          </Field>
+
+          <div style={{ height: 24 }} />
+        </form>
+      </Drawer>
+
+      <PrintBarcodeModal
+        open={!!printTarget}
+        target={printTarget}
+        onConfirm={handlePrintConfirm}
+        onCancel={() => setPrintTarget(null)}
+      />
+    </>
   );
 }
 
