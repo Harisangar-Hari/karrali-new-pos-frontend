@@ -16,7 +16,7 @@ import { useProductStocks, pickWarehouseQty } from '@/hooks/queries/useProductSt
 import { formatMoney } from '@/lib/format';
 import { usePosCartStore } from '@/stores/posCartStore';
 import type { ProductListRow } from '@/types/product';
-import { string } from 'zod/v4';
+
 
 interface Props {
   warehouseId: string | undefined;
