@@ -16,7 +16,7 @@ import {
   Table,
   Tag,
   Typography,
-  
+  App,
 } from 'antd';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import {
@@ -25,11 +25,9 @@ import {
   Eye,
   XCircle,
 } from 'lucide-react';
-import  { type Dayjs } from 'dayjs';
-import { Link, } from 'react-router-dom';
-import {
-  usePurchases,
-} from '@/hooks/queries/usePurchases';
+import dayjs, { type Dayjs } from 'dayjs';
+import { Link, useNavigate } from 'react-router-dom';
+import { usePurchases } from '@/hooks/queries/usePurchases';
 import { useSuppliersLookup } from '@/hooks/queries/useSuppliersLookup';
 import { useWarehousesLookup } from '@/hooks/queries/useLookups';
 import { usePermission } from '@/hooks/usePermission';
@@ -47,8 +45,36 @@ const { useBreakpoint } = Grid;
 const { RangePicker } = DatePicker;
 const DEFAULT_PAGE_SIZE = 20;
 
+type PaymentStatus = 'PAID' | 'PARTIAL' | 'UNPAID';
+
+/**
+ * Derive the payment state from the cached columns. Anything within
+ * 0.0001 of TotalAmount counts as fully paid — matches the backend's
+ * Decimal(18,4) precision and avoids "0.0001 outstanding" noise.
+ */
+function paymentStatus(total: string, paid: string): PaymentStatus {
+  const t = Number(total);
+  const p = Number(paid);
+  if (t <= 0) return 'PAID'; // free / zero-invoice — treat as settled
+  if (p <= 0) return 'UNPAID';
+  if (p >= t - 0.0001) return 'PAID';
+  return 'PARTIAL';
+}
+
+const PAYMENT_COLOR: Record<PaymentStatus, string> = {
+  PAID: 'green',
+  PARTIAL: 'orange',
+  UNPAID: 'red',
+};
+
+const PAYMENT_LABEL: Record<PaymentStatus, string> = {
+  PAID: 'Paid',
+  PARTIAL: 'Partial',
+  UNPAID: 'Unpaid',
+};
+
 export function PurchasesListPage() {
- 
+  const navigate = useNavigate();
   const screens = useBreakpoint();
   const isMobile = !screens.md;
 
@@ -60,6 +86,9 @@ export function PurchasesListPage() {
   const [supplierId, setSupplierId] = useState<string | undefined>();
   const [warehouseId, setWarehouseId] = useState<string | undefined>();
   const [status, setStatus] = useState<PurchaseStatus | undefined>();
+  const [paymentFilter, setPaymentFilter] = useState<
+    'paid' | 'partial' | 'unpaid' | undefined
+  >();
   const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(DEFAULT_PAGE_SIZE);
@@ -82,12 +111,24 @@ export function PurchasesListPage() {
       SupplierId: supplierId,
       WarehouseId: warehouseId,
       Status: status,
+      paymentStatus: paymentFilter,
       From: range?.[0]?.startOf('day').toISOString(),
       To: range?.[1]?.endOf('day').toISOString(),
       sortBy,
       sortOrder,
     }),
-    [page, limit, search, supplierId, warehouseId, status, range, sortBy, sortOrder],
+    [
+      page,
+      limit,
+      search,
+      supplierId,
+      warehouseId,
+      status,
+      paymentFilter,
+      range,
+      sortBy,
+      sortOrder,
+    ],
   );
 
   const { data, isLoading, isFetching } = usePurchases(query);
@@ -103,6 +144,7 @@ export function PurchasesListPage() {
     setSupplierId(undefined);
     setWarehouseId(undefined);
     setStatus(undefined);
+    setPaymentFilter(undefined);
     setRange(null);
     setPage(1);
   };
@@ -187,10 +229,50 @@ export function PurchasesListPage() {
       },
       {
         title: 'Paid',
-        dataIndex: 'PaidAmount',
-        key: 'PaidAmount',
+        key: 'paid',
         align: 'right',
-        render: (v: string) => formatMoney(v),
+        render: (_: unknown, row) => {
+          const balance = Number(row.TotalAmount) - Number(row.PaidAmount);
+          return (
+            <Flex vertical gap={0} align="flex-end">
+              <Typography.Text style={{ fontSize: 12 }}>
+                {formatMoney(row.PaidAmount)}
+              </Typography.Text>
+              {balance > 0.0001 && (
+                <Typography.Text style={{ fontSize: 10, color: '#dc2626' }}>
+                  bal {formatMoney(balance.toFixed(4))}
+                </Typography.Text>
+              )}
+            </Flex>
+          );
+        },
+      },
+      {
+        title: 'Payment',
+        key: 'payment',
+        align: 'center',
+        width: 90,
+        render: (_: unknown, row) => {
+          // Cancelled purchases don't have a "payment to chase" — show
+          // the payment status greyed out so the row can't be mistaken
+          // for an outstanding invoice.
+          if (row.Status === 'CANCELLED') {
+            return (
+              <Tag color="default" style={{ marginInlineEnd: 0 }}>
+                —
+              </Tag>
+            );
+          }
+          const status = paymentStatus(row.TotalAmount, row.PaidAmount);
+          return (
+            <Tag
+              color={PAYMENT_COLOR[status]}
+              style={{ marginInlineEnd: 0 }}
+            >
+              {PAYMENT_LABEL[status]}
+            </Tag>
+          );
+        },
       },
       {
         title: 'Status',
@@ -245,58 +327,76 @@ export function PurchasesListPage() {
     }
     return (
       <Flex vertical gap={8}>
-        {data.data.map((row) => (
-          <Card
-            key={row.Id}
-            size="small"
-            styles={{ body: { padding: 12 } }}
-            onClick={() => setDetailId(row.Id)}
-            style={{ cursor: 'pointer' }}
-          >
-            <Flex justify="space-between" gap={8} align="flex-start">
-              <Flex vertical gap={2} style={{ flex: 1, minWidth: 0 }}>
-                <Flex align="center" gap={6}>
-                  <Typography.Text strong>{row.Code}</Typography.Text>
-                  {row.Status === 'POSTED' ? (
-                    <Tag color="green" style={{ marginInlineEnd: 0 }}>
-                      POSTED
-                    </Tag>
-                  ) : (
-                    <Tag style={{ marginInlineEnd: 0 }}>CANCELLED</Tag>
+        {data.data.map((row) => {
+          const balance = Number(row.TotalAmount) - Number(row.PaidAmount);
+          const payStatus = paymentStatus(row.TotalAmount, row.PaidAmount);
+          const isCancelled = row.Status === 'CANCELLED';
+          return (
+            <Card
+              key={row.Id}
+              size="small"
+              styles={{ body: { padding: 12 } }}
+              onClick={() => setDetailId(row.Id)}
+              style={{ cursor: 'pointer' }}
+            >
+              <Flex justify="space-between" gap={8} align="flex-start">
+                <Flex vertical gap={2} style={{ flex: 1, minWidth: 0 }}>
+                  <Flex align="center" gap={6} wrap="wrap">
+                    <Typography.Text strong>{row.Code}</Typography.Text>
+                    {isCancelled ? (
+                      <Tag style={{ marginInlineEnd: 0 }}>CANCELLED</Tag>
+                    ) : (
+                      <Tag
+                        color={PAYMENT_COLOR[payStatus]}
+                        style={{ marginInlineEnd: 0 }}
+                      >
+                        {PAYMENT_LABEL[payStatus]}
+                      </Tag>
+                    )}
+                  </Flex>
+                  <Typography.Text style={{ fontSize: 12 }}>
+                    {row.Supplier.Name}
+                  </Typography.Text>
+                  <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                    {formatDate(row.InvoiceDate)} · {row.Warehouse.Name}
+                  </Typography.Text>
+                  {balance > 0.0001 && !isCancelled && (
+                    <Typography.Text
+                      style={{ fontSize: 11, color: '#dc2626' }}
+                    >
+                      Balance {formatMoney(balance.toFixed(4))}
+                    </Typography.Text>
+                  )}
+                  {isCancelled && (
+                    <Typography.Text
+                      type="secondary"
+                      style={{ fontSize: 11 }}
+                    >
+                      Cancelled — no balance
+                    </Typography.Text>
                   )}
                 </Flex>
-                <Typography.Text style={{ fontSize: 12 }}>
-                  {row.Supplier.Name}
-                </Typography.Text>
-                <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                  {formatDate(row.InvoiceDate)} · {row.Warehouse.Name}
-                </Typography.Text>
-                {Number(row.PaidAmount) > 0 && (
-                  <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                    Paid {formatMoney(row.PaidAmount)}
+                <Flex vertical gap={6} align="flex-end">
+                  <Typography.Text strong>
+                    {formatMoney(row.TotalAmount)}
                   </Typography.Text>
-                )}
+                  {canCancel && row.Status === 'POSTED' && (
+                    <Button
+                      size="small"
+                      danger
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCancelTarget(row);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                </Flex>
               </Flex>
-              <Flex vertical gap={6} align="flex-end">
-                <Typography.Text strong>
-                  {formatMoney(row.TotalAmount)}
-                </Typography.Text>
-                {canCancel && row.Status === 'POSTED' && (
-                  <Button
-                    size="small"
-                    danger
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCancelTarget(row);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                )}
-              </Flex>
-            </Flex>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </Flex>
     );
   };
@@ -335,7 +435,7 @@ export function PurchasesListPage() {
 
       <Card size="small" styles={{ body: { padding: isMobile ? 12 : 16 } }}>
         <Row gutter={[12, 12]}>
-          <Col xs={24} md={8}>
+          <Col xs={24} md={7}>
             <Input
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -396,15 +496,32 @@ export function PurchasesListPage() {
               style={{ width: '100%' }}
             />
           </Col>
-          <Col xs={24} md={4}>
-            <RangePicker
-              value={range}
-              onChange={(v) => setRange(v && v[0] && v[1] ? [v[0], v[1]] : null)}
+          <Col xs={12} md={5}>
+            <Select
+              value={paymentFilter}
+              onChange={(v) => {
+                setPaymentFilter(v);
+                setPage(1);
+              }}
+              placeholder="Payment"
+              allowClear
+              options={[
+                { label: 'Unpaid', value: 'unpaid' },
+                { label: 'Partial', value: 'partial' },
+                { label: 'Paid', value: 'paid' },
+              ]}
               style={{ width: '100%' }}
             />
           </Col>
           <Col xs={24} md={24}>
-            <Flex justify="flex-end">
+            <Flex align="center" justify="space-between" wrap="wrap" gap={8}>
+              <RangePicker
+                value={range}
+                onChange={(v) =>
+                  setRange(v && v[0] && v[1] ? [v[0], v[1]] : null)
+                }
+                style={{ minWidth: 260 }}
+              />
               <Button type="link" size="small" onClick={resetFilters}>
                 Reset filters
               </Button>

@@ -16,6 +16,7 @@ import { useProductStocks, pickWarehouseQty } from '@/hooks/queries/useProductSt
 import { formatMoney } from '@/lib/format';
 import { usePosCartStore } from '@/stores/posCartStore';
 import type { ProductListRow } from '@/types/product';
+import { string } from 'zod/v4';
 
 interface Props {
   warehouseId: string | undefined;
@@ -48,7 +49,7 @@ export function ProductSearch({ warehouseId }: Props) {
   const productIds = results.map((p) => p.Id);
   const stockQueries = useProductStocks(productIds);
 
-    const handleAdd = (p: ProductListRow) => {
+  const handleAdd = (p: ProductListRow) => {
     addLine({
       ProductId: p.Id,
       Name: p.Name,
@@ -57,7 +58,8 @@ export function ProductSearch({ warehouseId }: Props) {
       CostPrice: p.CostPrice,
       TaxRate: p.TaxRate !== null ? Number(p.TaxRate) : null,
       Discount: Number(p.Discount ?? 0),
-    });}
+    });
+  }
 
   const handleEnter = () => {
     const top = results[0];
@@ -214,6 +216,15 @@ function ProductResultRow({
                 : qty.toLocaleString()
           }
           valueColor={stockColor}
+        />
+        <Stat
+          label="Warranty"
+          value={
+            product.WarrantyMonths > 0
+              ? `${product.WarrantyMonths} mo`
+              : '—'
+          }
+          subtle
         />
         <Button
           type="primary"

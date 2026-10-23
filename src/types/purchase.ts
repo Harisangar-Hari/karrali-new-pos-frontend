@@ -97,6 +97,7 @@ export interface QueryPurchaseParams extends PaginationParams {
   Status?: PurchaseStatus;
   From?: string;
   To?: string;
+  paymentStatus?: 'paid' | 'partial' | 'unpaid';
 }
 
 export type PurchaseSortField =
