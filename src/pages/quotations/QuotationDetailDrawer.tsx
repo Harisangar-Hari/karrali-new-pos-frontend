@@ -11,9 +11,9 @@ import {
   Divider,
   Button,
   Alert,
+  App,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useNavigate } from 'react-router-dom';
 import {
   Send,
   CheckCircle2,
@@ -23,7 +23,10 @@ import {
   Trash2,
   ShoppingCart,
   ExternalLink,
+  Printer,
+  Download,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import {
   useDeleteQuotation,
   useQuotation,
@@ -35,7 +38,9 @@ import { ConvertQuotationModal } from './ConvertQuotationModal';
 import { QuotationStatusModal } from './QuotationStatusModal';
 import { formatMoney, formatDate, formatDateTime } from '@/lib/format';
 import { getErrorMessage } from '@/lib/api';
-import { App } from 'antd';
+import { printQuotation } from '@/utils/printQuotation';
+import { downloadQuotationPdf } from '@/utils/downloadQuotationPdf';
+import { quotationToDocumentData } from '@/utils/quotationToDocumentData';
 import type {
   QuotationEffectiveStatus,
   QuotationItemRow,
@@ -77,6 +82,29 @@ export function QuotationDetailDrawer({ quotationId, onClose }: Props) {
   const [statusAction, setStatusAction] = useState<
     'reject' | 'cancel' | null
   >(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const handlePrint = () => {
+    if (!data) return;
+    printQuotation(quotationToDocumentData(data));
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!data) return;
+    setDownloadingPdf(true);
+    try {
+      await downloadQuotationPdf(
+        quotationToDocumentData(data),
+        `quotation-${data.Code}.pdf`,
+      );
+    } catch {
+      message.error(
+        'PDF download failed — use Print and choose "Save as PDF".',
+      );
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   const itemColumns: ColumnsType<QuotationItemRow> = [
     {
@@ -178,7 +206,6 @@ export function QuotationDetailDrawer({ quotationId, onClose }: Props) {
     });
   };
 
-  // Compute available actions based on status
   const status = data?.EffectiveStatus;
   const canSend = canUpdate && status === 'DRAFT';
   const canAccept = canUpdate && status === 'SENT';
@@ -207,12 +234,32 @@ export function QuotationDetailDrawer({ quotationId, onClose }: Props) {
         onClose={onClose}
         width={isMobile ? '100%' : 720}
         destroyOnClose
+        extra={
+          data ? (
+            <Flex gap={8}>
+              <Button
+                icon={<Printer size={14} />}
+                onClick={handlePrint}
+                title="Print quotation"
+              >
+                {isMobile ? '' : 'Print'}
+              </Button>
+              <Button
+                icon={<Download size={14} />}
+                onClick={handleDownloadPdf}
+                loading={downloadingPdf}
+                title="Download PDF"
+              >
+                {isMobile ? '' : 'PDF'}
+              </Button>
+            </Flex>
+          ) : null
+        }
       >
         {isLoading || !data ? (
           <Skeleton active paragraph={{ rows: 12 }} />
         ) : (
           <Flex vertical gap={16}>
-            {/* Expired warning */}
             {data.EffectiveStatus === 'EXPIRED' && (
               <Alert
                 type="warning"
@@ -222,7 +269,6 @@ export function QuotationDetailDrawer({ quotationId, onClose }: Props) {
               />
             )}
 
-            {/* Converted banner */}
             {data.Status === 'CONVERTED' && data.Sale && (
               <Alert
                 type="success"
@@ -323,7 +369,6 @@ export function QuotationDetailDrawer({ quotationId, onClose }: Props) {
               </div>
             )}
 
-            {/* Items */}
             <div>
               <Typography.Title level={5} style={{ marginBottom: 8 }}>
                 Items ({data.Items.length})
@@ -337,7 +382,6 @@ export function QuotationDetailDrawer({ quotationId, onClose }: Props) {
               />
             </div>
 
-            {/* Actions */}
             {hasAnyAction && (
               <>
                 <Divider style={{ margin: 0 }} />
