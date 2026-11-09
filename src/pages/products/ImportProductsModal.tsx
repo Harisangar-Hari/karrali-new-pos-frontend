@@ -1,4 +1,4 @@
-import { useEffect,  useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Modal,
   Flex,
@@ -9,7 +9,7 @@ import {
   Tag,
   Upload,
   Divider,
-  
+
   Grid,
   App,
   Result,
@@ -56,7 +56,7 @@ export function ImportProductsModal({ open, onClose, onSuccess }: Props) {
   const [parseError, setParseError] = useState<string | null>(null);
   const [importResult, setImportResult] =
     useState<ImportProductsResult | null>(null);
-  
+
 
   // Reset on open
   useEffect(() => {
@@ -328,6 +328,32 @@ export function ImportProductsModal({ open, onClose, onSuccess }: Props) {
           message="Categories and brands will be created if they don't exist"
           description="Missing categories/brands are created once per unique name. Existing ones are reused."
         />
+        <Alert
+          type="info"
+          showIcon
+          message="How stock & discounts are applied"
+          description={
+            <Flex vertical gap={4}>
+              <span>
+                <strong>New products:</strong> InitialQty is written as an
+                OPENING stock movement.
+              </span>
+              <span>
+                <strong>Existing products:</strong> InitialQty sets the
+                stock to that value in the specified warehouse (via an
+                ADJUSTMENT). Leave it blank to leave stock untouched.
+              </span>
+              <span>
+                <strong>DiscountAmount</strong> is a flat LKR amount per
+                unit. It cannot exceed Price.
+              </span>
+              <span>
+                Categories and brands are created once per unique name if
+                they don&apos;t already exist.
+              </span>
+            </Flex>
+          }
+        />
 
         <Flex justify="flex-end" gap={8}>
           <Button onClick={() => setStep('upload')}>Back</Button>
@@ -358,13 +384,13 @@ export function ImportProductsModal({ open, onClose, onSuccess }: Props) {
             </span>
             {(importResult.CategoriesCreated > 0 ||
               importResult.BrandsCreated > 0) && (
-              <span style={{ color: '#888' }}>
-                {importResult.CategoriesCreated} new categor
-                {importResult.CategoriesCreated === 1 ? 'y' : 'ies'} ·{' '}
-                {importResult.BrandsCreated} new brand
-                {importResult.BrandsCreated === 1 ? '' : 's'}
-              </span>
-            )}
+                <span style={{ color: '#888' }}>
+                  {importResult.CategoriesCreated} new categor
+                  {importResult.CategoriesCreated === 1 ? 'y' : 'ies'} ·{' '}
+                  {importResult.BrandsCreated} new brand
+                  {importResult.BrandsCreated === 1 ? '' : 's'}
+                </span>
+              )}
           </Flex>
         }
         extra={

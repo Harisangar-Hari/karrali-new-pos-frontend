@@ -103,6 +103,7 @@ export function ProductSearch({ warehouseId, warehouseName }: Props) {
       CostPrice: p.CostPrice,
       TaxRate: p.TaxRate !== null ? Number(p.TaxRate) : null,
       Discount: Number(p.Discount ?? 0),
+      DiscountAmount: Number(p.DiscountAmount ?? 0),
     });
     setInput('');
     setSearch('');

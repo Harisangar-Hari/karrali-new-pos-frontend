@@ -11,6 +11,7 @@ import {
   Divider,
   Tooltip,
   Alert,
+  Tag,
 } from 'antd';
 import { Trash2, Minus, Plus, AlertTriangle } from 'lucide-react';
 import {
@@ -52,7 +53,6 @@ export function CartPanel({
 
   const totals = computeCartTotals(lines, invoiceDiscount);
 
-  // Live stock for every cart line's product.
   const productIds = lines.map((l) => l.ProductId);
   const stockQueries = useProductStocks(productIds);
 
@@ -63,10 +63,8 @@ export function CartPanel({
     availableByProduct.set(line.ProductId, qty);
   });
 
-  // Cap on invoice discount so no line goes below cost.
   const invoiceCap = canDiscount ? maxInvoiceDiscount(lines) : 0;
 
-  // Any line whose current qty exceeds available stock?
   const hasOverQty = lines.some((line) => {
     const avail = availableByProduct.get(line.ProductId);
     return avail !== null && avail !== undefined && line.Qty > avail;
@@ -104,19 +102,20 @@ export function CartPanel({
         ) : (
           <Flex vertical gap={8}>
             {lines.map((line) => {
-              const lineTotal = computeCartTotals(
-                [line],
-                invoiceDiscount,
-              ).total;
+              const lineTotals = computeCartTotals([line], invoiceDiscount);
               const available = availableByProduct.get(line.ProductId);
               const overQty =
                 available !== null &&
                 available !== undefined &&
                 line.Qty > available;
 
-              // Max line discount given current invoice discount and cost floor.
               const lineDiscCap = canDiscount
-                ? maxDiscountGiven(line.UnitPrice, line.CostPrice, invoiceDiscount)
+                ? maxDiscountGiven(
+                    line.UnitPrice,
+                    line.CostPrice,
+                    line.DiscountAmount ?? 0,
+                    invoiceDiscount,
+                  )
                 : 0;
               const belowCost = canDiscount && line.Discount > lineDiscCap;
 
@@ -125,17 +124,33 @@ export function CartPanel({
                 invoiceDiscount,
               );
 
+              const hasFlat = (line.DiscountAmount ?? 0) > 0;
+              const hasLinePct = (line.Discount ?? 0) > 0;
+
+              // Effective unit price after all discounts (for display)
+              const effectiveUnitPrice =
+                (Number(line.UnitPrice) - (line.DiscountAmount ?? 0)) *
+                (1 - line.Discount / 100) *
+                (1 - invoiceDiscount / 100);
+
               return (
                 <div
                   key={line.ProductId}
                   style={{
                     padding: 10,
-                    border: overQty || belowCost
-                      ? '1px solid #fecaca'
-                      : '1px solid #f0f0f0',
+                    border:
+                      overQty || belowCost
+                        ? '1px solid #fecaca'
+                        : hasFlat
+                          ? '1px solid #bbf7d0'
+                          : '1px solid #f0f0f0',
                     borderRadius: 6,
                     background:
-                      overQty || belowCost ? '#fef2f2' : '#fafafa',
+                      overQty || belowCost
+                        ? '#fef2f2'
+                        : hasFlat
+                          ? '#f0fdf4'
+                          : '#fafafa',
                   }}
                 >
                   <Flex justify="space-between" gap={8} align="flex-start">
@@ -147,9 +162,61 @@ export function CartPanel({
                         type="secondary"
                         style={{ fontSize: 11 }}
                       >
-                        {formatMoney(line.UnitPrice)} each
-                        {effectivePct > 0 ? ` · −${effectivePct}%` : ''}
+                        {hasFlat ? (
+                          <>
+                            <span style={{ textDecoration: 'line-through' }}>
+                              {formatMoney(line.UnitPrice)}
+                            </span>{' '}
+                            → {formatMoney(effectiveUnitPrice.toFixed(4))} each
+                          </>
+                        ) : (
+                          <>
+                            {formatMoney(line.UnitPrice)} each
+                            {effectivePct > 0 ? ` · −${effectivePct}%` : ''}
+                          </>
+                        )}
                       </Typography.Text>
+                      {hasFlat && (
+                        <Flex gap={4} wrap="wrap" style={{ marginTop: 2 }}>
+                          <Tag
+                            color="green"
+                            style={{
+                              marginInlineEnd: 0,
+                              fontSize: 10,
+                              padding: '0 4px',
+                              lineHeight: '16px',
+                            }}
+                          >
+                            Flat −{formatMoney((line.DiscountAmount ?? 0).toFixed(4))}
+                          </Tag>
+                          {hasLinePct && (
+                            <Tag
+                              color="green"
+                              style={{
+                                marginInlineEnd: 0,
+                                fontSize: 10,
+                                padding: '0 4px',
+                                lineHeight: '16px',
+                              }}
+                            >
+                              Line −{line.Discount}%
+                            </Tag>
+                          )}
+                          {invoiceDiscount > 0 && (
+                            <Tag
+                              color="green"
+                              style={{
+                                marginInlineEnd: 0,
+                                fontSize: 10,
+                                padding: '0 4px',
+                                lineHeight: '16px',
+                              }}
+                            >
+                              Inv −{invoiceDiscount}%
+                            </Tag>
+                          )}
+                        </Flex>
+                      )}
                     </Flex>
                     <Popconfirm
                       title="Remove from cart?"
@@ -228,7 +295,7 @@ export function CartPanel({
                       )}
                     </Flex>
                     <Typography.Text strong>
-                      {formatMoney(lineTotal)}
+                      {formatMoney(lineTotals.total)}
                     </Typography.Text>
                   </Flex>
 
@@ -252,9 +319,7 @@ export function CartPanel({
                         title={
                           lineDiscCap > 0
                             ? `Max ${lineDiscCap}% — cannot go below cost price (${formatMoney(line.CostPrice)})`
-                            : Number(line.UnitPrice) <= Number(line.CostPrice)
-                              ? 'Price is already at or below cost — no discount allowed'
-                              : 'No discount headroom with current invoice discount'
+                            : 'No headroom with current discounts'
                         }
                       >
                         <Typography.Text
@@ -348,6 +413,13 @@ export function CartPanel({
 
         <Flex vertical gap={4}>
           <Row label="Subtotal" value={formatMoney(totals.subtotal)} />
+          {Number(totals.flatDiscountAmount) > 0 && (
+            <Row
+              label="Flat discounts"
+              value={`− ${formatMoney(totals.flatDiscountAmount)}`}
+              valueColor="#16a34a"
+            />
+          )}
           {Number(totals.lineDiscountAmount) > 0 && (
             <Row
               label="Line discounts"

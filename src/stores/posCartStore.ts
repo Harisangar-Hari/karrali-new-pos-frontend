@@ -9,7 +9,11 @@ export interface CartLine {
   /** Product cost at add-time. Used to enforce the "no sale below cost" floor. */
   CostPrice: string;
   Qty: number;
-  Discount: number; // % — line-specific
+  /** Line-specific discount % (cashier editable). */
+  Discount: number;
+  /** Flat discount amount per unit (LKR), copied from the product at add-time. */
+  DiscountAmount: number;
+  /** Tax rate %, null = no tax. */
   TaxRate: number | null;
   Notes?: string;
 }
@@ -20,9 +24,10 @@ interface CartState {
   notes: string;
   invoiceDiscount: number;
   addLine: (
-    line: Omit<CartLine, 'Qty' | 'Discount'> & {
+    line: Omit<CartLine, 'Qty' | 'Discount' | 'DiscountAmount'> & {
       Qty?: number;
       Discount?: number;
+      DiscountAmount?: number;
     },
   ) => void;
   updateQty: (productId: string, qty: number) => void;
@@ -63,6 +68,7 @@ export const usePosCartStore = create<CartState>((set) => ({
             CostPrice: line.CostPrice,
             Qty: line.Qty ?? 1,
             Discount: line.Discount ?? 0,
+            DiscountAmount: line.DiscountAmount ?? 0,
             TaxRate: line.TaxRate,
             Notes: line.Notes,
           },
@@ -103,8 +109,12 @@ export const usePosCartStore = create<CartState>((set) => ({
 }));
 
 /**
- * Combined effective discount % for a line, given an invoice-wide %.
+ * Combined effective discount % for a line, given the invoice-wide %.
  * Invoice discount is compound — applies to the post-line-discount amount.
+ *
+ * NOTE: This returns the % equivalent of ONLY the line % + invoice %.
+ * The flat discount (DiscountAmount) is separate — it applies as an
+ * absolute amount FIRST, reducing the unit price before any % math.
  */
 export function effectiveLineDiscount(
   line: CartLine,
@@ -124,47 +134,59 @@ export function effectiveLineDiscount(
 }
 
 /**
- * Maximum discount % (for either the line OR the invoice, whichever is
- * the "other" fixed side) so the effective unit price stays at or above
- * the product cost. Uses the compounded formula:
+ * Maximum line % discount so the *post-flat-and-percent-and-invoice*
+ * price does not fall below the product's cost price.
  *
- *   unitPrice × (1 − fixedPct/100) × (1 − maxPct/100) ≥ costPrice
+ * Full unit-price derivation:
+ *   effective = (unitPrice − flat) × (1 − linePct/100) × (1 − invoicePct/100)
  *
- * If unitPrice is already at or below cost, returns 0. Clamped to [0, 100].
+ * We solve for the maximum linePct such that effective ≥ costPrice.
  */
 export function maxDiscountGiven(
   unitPrice: string,
   costPrice: string,
-  otherPct: number,
+  flatDiscountAmount: number,
+  invoicePct: number,
 ): number {
   const up = new Decimal(unitPrice);
   const cp = new Decimal(costPrice);
-  if (up.lte(0)) return 0;
+  const flat = new Decimal(flatDiscountAmount ?? 0);
 
-  const otherFactor = new Decimal(1).sub(new Decimal(otherPct ?? 0).div(100));
-  if (otherFactor.lte(0)) return 0;
+  // Post-flat unit price
+  const afterFlat = up.sub(flat);
+  if (afterFlat.lte(0)) return 0;
 
-  const afterOther = up.mul(otherFactor);
-  if (afterOther.lte(0)) return 0;
+  const invoiceFactor = new Decimal(1).sub(
+    new Decimal(invoicePct ?? 0).div(100),
+  );
+  if (invoiceFactor.lte(0)) return 0;
 
-  const max = new Decimal(1).sub(cp.div(afterOther)).mul(100);
+  const afterInvoice = afterFlat.mul(invoiceFactor);
+  if (afterInvoice.lte(0)) return 0;
+
+  // Solve: afterInvoice × (1 − linePct/100) ≥ costPrice
+  // → linePct/100 ≤ 1 − cp / afterInvoice
+  const max = new Decimal(1).sub(cp.div(afterInvoice)).mul(100);
   if (max.isNegative()) return 0;
   if (max.greaterThan(100)) return 100;
-  // Round DOWN to the nearest 0.01 so a user input that matches the cap
-  // never accidentally rounds above it.
   return max.toDecimalPlaces(2, Decimal.ROUND_DOWN).toNumber();
 }
 
 /**
- * Maximum invoice discount % across all lines so that NO line falls below
- * its cost price, taking each line's current line-level discount into
- * account. Returns 100 when the cart is empty.
+ * Maximum invoice discount % across all lines so that no line falls
+ * below its cost price, taking each line's current line % AND flat
+ * discount into account. Returns 100 when the cart is empty.
  */
 export function maxInvoiceDiscount(lines: CartLine[]): number {
   if (lines.length === 0) return 100;
   let min = 100;
   for (const line of lines) {
-    const m = maxDiscountGiven(line.UnitPrice, line.CostPrice, line.Discount);
+    const m = maxDiscountGiven(
+      line.UnitPrice,
+      line.CostPrice,
+      line.DiscountAmount ?? 0,
+      line.Discount,
+    );
     if (m < min) min = m;
   }
   return Math.max(0, min);
@@ -172,6 +194,7 @@ export function maxInvoiceDiscount(lines: CartLine[]): number {
 
 export interface CartTotals {
   subtotal: string;
+  flatDiscountAmount: string;
   lineDiscountAmount: string;
   invoiceDiscountAmount: string;
   discountAmount: string;
@@ -179,12 +202,24 @@ export interface CartTotals {
   total: string;
 }
 
+/**
+ * Cart totals with flat + line % + invoice % compounding in order:
+ *   1. Flat discount (absolute, per unit) — subtracted from unit price
+ *   2. Line % — applies to post-flat amount
+ *   3. Invoice % — applies to post-line amount
+ *   4. Tax — applies to post-invoice amount
+ *
+ * Result matches the backend `sales.service.ts` line math exactly
+ * (4dp at every step), so the total we display equals what the backend
+ * will compute. No "Payment total doesn't match" surprises at checkout.
+ */
 export function computeCartTotals(
   lines: CartLine[],
   invoicePct = 0,
 ): CartTotals {
   const ZERO = new Decimal(0);
   let subtotal = ZERO;
+  let flatDiscountTotal = ZERO;
   let lineDiscountOnly = ZERO;
   let invoiceDiscountOnly = ZERO;
   let taxAmount = ZERO;
@@ -194,33 +229,48 @@ export function computeCartTotals(
     const unitPrice = new Decimal(line.UnitPrice);
     const lineSubtotal = qty.mul(unitPrice).toDecimalPlaces(4);
 
-    const linePct = new Decimal(line.Discount ?? 0);
-    const lineDisc = lineSubtotal.mul(linePct).div(100).toDecimalPlaces(4);
-    const afterLineDisc = lineSubtotal.sub(lineDisc);
+    // 1. Flat discount per unit × qty
+    const flatPerUnit = new Decimal(line.DiscountAmount ?? 0);
+    const flatLine = qty.mul(flatPerUnit).toDecimalPlaces(4);
+    const afterFlat = lineSubtotal.sub(flatLine);
 
+    // 2. Line % on post-flat amount
+    const linePct = new Decimal(line.Discount ?? 0);
+    const lineDisc = afterFlat.mul(linePct).div(100).toDecimalPlaces(4);
+    const afterLine = afterFlat.sub(lineDisc);
+
+    // 3. Invoice % on post-line amount
     const invoicePctDec = new Decimal(invoicePct ?? 0);
-    const invoiceDisc = afterLineDisc
+    const invoiceDisc = afterLine
       .mul(invoicePctDec)
       .div(100)
       .toDecimalPlaces(4);
-    const afterAllDisc = afterLineDisc.sub(invoiceDisc);
+    const afterInvoice = afterLine.sub(invoiceDisc);
 
+    // 4. Tax on post-invoice amount
     const lineTax =
       line.TaxRate !== null
-        ? afterAllDisc.mul(new Decimal(line.TaxRate)).div(100).toDecimalPlaces(4)
+        ? afterInvoice
+            .mul(new Decimal(line.TaxRate))
+            .div(100)
+            .toDecimalPlaces(4)
         : ZERO;
 
     subtotal = subtotal.add(lineSubtotal);
+    flatDiscountTotal = flatDiscountTotal.add(flatLine);
     lineDiscountOnly = lineDiscountOnly.add(lineDisc);
     invoiceDiscountOnly = invoiceDiscountOnly.add(invoiceDisc);
     taxAmount = taxAmount.add(lineTax);
   }
 
-  const combinedDiscount = lineDiscountOnly.add(invoiceDiscountOnly);
+  const combinedDiscount = flatDiscountTotal
+    .add(lineDiscountOnly)
+    .add(invoiceDiscountOnly);
   const total = subtotal.sub(combinedDiscount).add(taxAmount);
 
   return {
     subtotal: subtotal.toFixed(4),
+    flatDiscountAmount: flatDiscountTotal.toFixed(4),
     lineDiscountAmount: lineDiscountOnly.toFixed(4),
     invoiceDiscountAmount: invoiceDiscountOnly.toFixed(4),
     discountAmount: combinedDiscount.toFixed(4),

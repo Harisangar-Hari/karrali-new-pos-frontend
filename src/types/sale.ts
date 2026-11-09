@@ -11,6 +11,7 @@ export interface SaleItemInput {
   Qty: number;
   UnitPrice: number;
   Discount?: number;
+  DiscountAmount?: number;
   TaxRate?: number;
   Notes?: string;
 }
@@ -43,6 +44,7 @@ export interface SaleItemRow {
   ReturnedQty: number;
   UnitPrice: string;
   Discount: string;
+  DiscountAmount: string;
   TaxRate: string | null;
   LineSubtotal: string;
   LineDiscount: string;
@@ -170,7 +172,7 @@ export interface SaleDetail {
   UpdatedAt: string;
   Terminal: { Id: string; Name: string; Code: string };
   Cashier: { Id: string; Username: string; FullName: string | null };
-  Customer: { Id: string; Name: string; Code: string } | null;
+  Customer: { Id: string; Name: string; Code: string; Phone: string | null } | null;
   Warehouse: { Id: string; Name: string; Code: string };
   Items: SaleItemRow[];
   Payments: SalePaymentRow[];

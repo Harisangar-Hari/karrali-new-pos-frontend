@@ -4,18 +4,21 @@ import type { ReceiptData, ReceiptItem, ReceiptReturnLine } from '@/types/receip
 export function saleToReceiptData(sale: SaleDetail): ReceiptData {
   const items: ReceiptItem[] = sale.Items.map((item) => {
     const unitPrice = Number(item.UnitPrice);
+    const flatDiscount = Number(item.DiscountAmount ?? 0);
     const discountPct = Number(item.Discount);
-    const unitDiscount = (unitPrice * discountPct) / 100;
+    const unitDiscount = discountPct; // store the % itself, not the derived amount
     const lineTotal = Number(item.LineTotal);
     return {
       name: item.Product.Name,
       quantity: item.Qty,
       unitPrice,
+      flatDiscount,
       unitDiscount,
       lineTotal,
       returnedQty: item.ReturnedQty,
     };
   });
+
 
   const returns: ReceiptReturnLine[] = sale.Returns.map((r) => ({
     code: r.Code,
@@ -50,7 +53,7 @@ export function saleToReceiptData(sale: SaleDetail): ReceiptData {
     date: sale.CreatedAt,
     cashier: sale.Cashier.FullName ?? sale.Cashier.Username,
     customerName: sale.Customer?.Name,
-    customerPhone: undefined,
+    customerPhone: sale.Customer?.Phone ?? undefined,
     terminalName: `${sale.Terminal.Name} (${sale.Terminal.Code})`,
 
     items,

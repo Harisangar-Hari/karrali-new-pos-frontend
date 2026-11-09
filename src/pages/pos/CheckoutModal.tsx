@@ -16,7 +16,7 @@ import { Trash2, Plus } from 'lucide-react';
 import Decimal from 'decimal.js';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useCreateSale } from '@/hooks/queries/useCreateSale';
-import { effectiveLineDiscount, usePosCartStore } from '@/stores/posCartStore';
+import { usePosCartStore } from '@/stores/posCartStore';
 import { formatMoney } from '@/lib/format';
 import { getErrorMessage } from '@/lib/api';
 import type { SaleDetail, SalePaymentMethod } from '@/types/sale';
@@ -65,11 +65,26 @@ function newLineId() {
 
 const EPSILON = new Decimal('0.0001');
 
+/**
+ * Combine line % and invoice % into a single effective percentage.
+ * Both are compound, so this is not addition — it's:
+ *   1 − (1 − line/100) × (1 − invoice/100)
+ *
+ * The backend applies this effective % to the post-flat-discount amount,
+ * which matches exactly what the cart displayed (which applies line %
+ * and invoice % as two sequential multiplications).
+ */
+function combineLinePct(linePct: number, invoicePct: number): number {
+  const lineFactor = 1 - linePct / 100;
+  const invoiceFactor = 1 - invoicePct / 100;
+  const combined = 1 - lineFactor * invoiceFactor;
+  const pct = Math.min(100, Math.max(0, combined * 100));
+  return Number(pct.toFixed(2));
+}
 export function CheckoutModal({
   open,
   total,
   session,
- 
   onClose,
   onSuccess,
 }: Props) {
@@ -123,8 +138,7 @@ export function CheckoutModal({
     ? paidTotal.sub(totalDec)
     : new Decimal(0);
   const isOverFromCash = overBy.gt(EPSILON) && cashEntered.gte(overBy);
-  const isOverFromNonCash =
-    overBy.gt(EPSILON) && cashEntered.lt(overBy);
+  const isOverFromNonCash = overBy.gt(EPSILON) && cashEntered.lt(overBy);
   const changeDue = isOverFromCash ? overBy : new Decimal(0);
 
   const canBalance = balanced || isOverFromCash;
@@ -187,21 +201,31 @@ export function CheckoutModal({
         return p;
       });
 
-      const submitted = adjustedPayments.filter(
-        (p) => (p.Amount ?? 0) > 0,
-      );
+      const submitted = adjustedPayments.filter((p) => (p.Amount ?? 0) > 0);
 
       const sale = await createSale.mutateAsync({
         TerminalId: session.TerminalId,
         CustomerId: customerId ?? undefined,
         Notes: notes || undefined,
-        Items: lines.map((l) => ({
-          ProductId: l.ProductId,
-          Qty: l.Qty,
-          UnitPrice: Number(l.UnitPrice),
-          Discount: effectiveLineDiscount(l, invoiceDiscount),
-          TaxRate: l.TaxRate ?? undefined,
-        })),
+        Items: lines.map((l) => {
+          // Combine line % and invoice % into a single effective % that
+          // the backend applies to the post-flat-discount amount. This
+          // makes the backend's computed line total match what the cart
+          // displayed — no "Payment total doesn't match" errors.
+          const effectivePct = combineLinePct(
+            l.Discount ?? 0,
+            invoiceDiscount ?? 0,
+          );
+          return {
+            ProductId: l.ProductId,
+            Qty: l.Qty,
+            UnitPrice: Number(l.UnitPrice),
+            DiscountAmount:
+              (l.DiscountAmount ?? 0) > 0 ? l.DiscountAmount : undefined,
+            Discount: effectivePct > 0 ? effectivePct : undefined,
+            TaxRate: l.TaxRate ?? undefined,
+          };
+        }),
         Payments: submitted.map((p) => {
           const base = {
             Method: p.Method,
@@ -277,11 +301,12 @@ export function CheckoutModal({
               strong
               style={{
                 fontSize: 15,
-                color: balanced || isOverFromCash
-                  ? '#16a34a'
-                  : isShort
-                    ? '#dc2626'
-                    : '#f59e0b',
+                color:
+                  balanced || isOverFromCash
+                    ? '#16a34a'
+                    : isShort
+                      ? '#dc2626'
+                      : '#f59e0b',
               }}
             >
               {isOverFromCash
@@ -331,9 +356,17 @@ export function CheckoutModal({
         />
       )}
 
-      <Flex align="center" justify="space-between" gap={8} wrap="wrap" style={{ marginBottom: 8 }}>
+      <Flex
+        align="center"
+        justify="space-between"
+        gap={8}
+        wrap="wrap"
+        style={{ marginBottom: 8 }}
+      >
         <Flex align="center" gap={8} wrap="wrap">
-          <Typography.Text style={{ fontSize: 12 }}>Add payment:</Typography.Text>
+          <Typography.Text style={{ fontSize: 12 }}>
+            Add payment:
+          </Typography.Text>
           <Segmented
             options={METHODS.map((m) => ({
               label: m.label,

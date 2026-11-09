@@ -324,6 +324,48 @@ export function ProductsListPage() {
           sortBy === 'Price' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
         render: (_: unknown, row) => formatMoney(row.Price),
       },
+
+      {
+        title: 'Discount',
+        key: 'discount',
+        align: 'right',
+        width: 120,
+        render: (_: unknown, row) => {
+          const flat = Number(row.DiscountAmount ?? 0);
+          const pct = Number(row.Discount ?? 0);
+          if (flat <= 0 && pct <= 0) {
+            return (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                —
+              </Typography.Text>
+            );
+          }
+          return (
+            <Flex vertical gap={0} align="flex-end">
+              {flat > 0 && (
+                <Typography.Text
+                  style={{ fontSize: 12, color: '#16a34a', fontWeight: 600 }}
+                >
+                  − {formatMoney(flat.toFixed(4))}
+                </Typography.Text>
+              )}
+              {pct > 0 && (
+                <Tag
+                  color="green"
+                  style={{
+                    marginInlineEnd: 0,
+                    fontSize: 10,
+                    padding: '0 4px',
+                    lineHeight: '16px',
+                  }}
+                >
+                  −{pct.toFixed(0)}%
+                </Tag>
+              )}
+            </Flex>
+          );
+        },
+      },
       {
         title: 'Cost',
         dataIndex: 'CostPrice',
@@ -422,10 +464,26 @@ export function ProductsListPage() {
                     {row.Category.Name}
                     {row.Brand ? ` · ${row.Brand.Name}` : ''}
                   </Typography.Text>
-                  <Flex gap={6} align="center" style={{ marginTop: 4 }}>
+                  <Flex gap={6} align="center" style={{ marginTop: 4 }} wrap="wrap">
                     <Typography.Text strong>
                       {formatMoney(row.Price)}
                     </Typography.Text>
+                    {Number(row.DiscountAmount ?? 0) > 0 && (
+                      <Tag
+                        color="green"
+                        style={{ marginInlineEnd: 0 }}
+                      >
+                        −{formatMoney(row.DiscountAmount)}
+                      </Tag>
+                    )}
+                    {Number(row.Discount ?? 0) > 0 && (
+                      <Tag
+                        color="green"
+                        style={{ marginInlineEnd: 0 }}
+                      >
+                        −{Number(row.Discount).toFixed(0)}%
+                      </Tag>
+                    )}
                     {qty !== null && (
                       <Tag
                         color={zero ? 'red' : low ? 'orange' : 'cyan'}

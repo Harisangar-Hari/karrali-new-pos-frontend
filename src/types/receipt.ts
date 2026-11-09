@@ -2,6 +2,9 @@ export interface ReceiptItem {
   name: string;
   quantity: number;
   unitPrice: number;
+  /** Per-unit flat discount in LKR. */
+  flatDiscount: number;
+  /** Line percentage discount (already includes invoice % if combined at checkout). */
   unitDiscount: number;
   lineTotal: number;
   /** How many units of the original quantity have already been returned. */

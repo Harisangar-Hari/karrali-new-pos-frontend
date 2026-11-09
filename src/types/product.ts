@@ -31,6 +31,12 @@ export interface ProductListRow {
   Price: string;
   CostPrice: string;
   Discount: string;
+  /**
+   * Flat discount amount per unit (LKR). Applied before `Discount` % — the
+   * base Price is reduced by this amount, then any line % stacks on the
+   * post-flat amount. Cannot exceed Price (validated on backend).
+   */
+  DiscountAmount: string;
   TaxRate: string | null;
   ReorderLevel: number;
   WarrantyMonths: number;
@@ -43,13 +49,14 @@ export interface ProductListRow {
   DeletedAt: string | null;
   Category: CategoryRef;
   Brand: BrandRef | null;
-  WarehouseStocks?: { WarehouseId?: string; Qty: number }[];
   /**
-   * Per-warehouse stock. Present only after the backend PRODUCT_LIST_INCLUDE
-   * adds `WarehouseStocks: { select: { Qty: true } }`. Before that change
-   * lands, this is undefined and the list Qty column shows "—".
+   * Per-warehouse stock. When a `WarehouseId` filter is active on the
+   * list request, this contains a single row (that warehouse). Otherwise
+   * it contains every warehouse's qty. The Stock column sums whichever
+   * rows are present, so the total is always correct for the current
+   * filter.
    */
-  
+  WarehouseStocks?: { WarehouseId?: string; Qty: number }[];
 }
 
 export interface WarehouseStockRow {
@@ -73,6 +80,7 @@ export interface CreateProductInput {
   Price: number;
   CostPrice: number;
   Discount?: number;
+  DiscountAmount?: number;
   TaxRate?: number | null;
   ReorderLevel?: number;
   WarrantyMonths?: number;
@@ -98,7 +106,10 @@ export interface QueryProductParams extends PaginationParams {
   minPrice?: number;
   maxPrice?: number;
   includeDeleted?: boolean;
-   WarehouseId?: string;
+  /** Scope stock quantities to one warehouse. */
+  WarehouseId?: string;
+  /** Only products with non-zero stock (respects WarehouseId when set). */
+  inStock?: boolean;
 }
 
 export type ProductSortField =
@@ -108,8 +119,6 @@ export type ProductSortField =
   | 'CostPrice'
   | 'CreatedAt'
   | 'UpdatedAt';
-
-
 
 // ─── Bulk import ────────────────────────────────────────────────
 
@@ -124,6 +133,7 @@ export interface ImportProductRow {
   Unit?: string;
   Description?: string;
   Discount?: number;
+  DiscountAmount?: number;
   TaxRate?: number;
   ReorderLevel?: number;
   WarrantyMonths?: number;

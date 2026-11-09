@@ -52,6 +52,7 @@ interface DraftLine {
   Qty: number;
   UnitPrice: number;
   Discount: number;
+  DiscountAmount: number;
   TaxRate: number | null;
   Notes?: string;
 }
@@ -154,6 +155,7 @@ export function QuotationFormPage() {
           Qty: item.Qty,
           UnitPrice: Number(item.UnitPrice),
           Discount: Number(item.Discount),
+          DiscountAmount: Number(item.DiscountAmount ?? 0),
           TaxRate: item.TaxRate !== null ? Number(item.TaxRate) : null,
           Notes: item.Notes ?? undefined,
         })),
@@ -179,6 +181,7 @@ export function QuotationFormPage() {
         Qty: 1,
         UnitPrice: Number(p.Price),
         Discount: Number(p.Discount ?? 0),
+        DiscountAmount: Number(p.DiscountAmount ?? 0),
         TaxRate: p.TaxRate !== null ? Number(p.TaxRate) : null,
       },
     ]);
@@ -199,29 +202,38 @@ export function QuotationFormPage() {
   const totals = useMemo(() => {
     const ZERO = new Decimal(0);
     let subtotal = ZERO;
-    let discount = ZERO;
+    let flatDiscount = ZERO;
+    let lineDiscount = ZERO;
     let tax = ZERO;
     for (const l of lines) {
       const lineSub = new Decimal(l.Qty).mul(l.UnitPrice).toDecimalPlaces(4);
-      const lineDisc = lineSub
+      const flatLine = new Decimal(l.Qty)
+        .mul(new Decimal(l.DiscountAmount ?? 0))
+        .toDecimalPlaces(4);
+      const afterFlat = lineSub.sub(flatLine);
+      const lineDisc = afterFlat
         .mul(new Decimal(l.Discount ?? 0))
         .div(100)
         .toDecimalPlaces(4);
-      const afterDisc = lineSub.sub(lineDisc);
+      const afterDisc = afterFlat.sub(lineDisc);
       const lineTax =
         l.TaxRate !== null
           ? afterDisc.mul(new Decimal(l.TaxRate)).div(100).toDecimalPlaces(4)
           : ZERO;
 
       subtotal = subtotal.add(lineSub);
-      discount = discount.add(lineDisc);
+      flatDiscount = flatDiscount.add(flatLine);
+      lineDiscount = lineDiscount.add(lineDisc);
       tax = tax.add(lineTax);
     }
+    const combinedDiscount = flatDiscount.add(lineDiscount);
     return {
       subtotal: subtotal.toFixed(4),
-      discount: discount.toFixed(4),
+      flatDiscount: flatDiscount.toFixed(4),
+      lineDiscount: lineDiscount.toFixed(4),
+      discount: combinedDiscount.toFixed(4),
       tax: tax.toFixed(4),
-      total: subtotal.sub(discount).add(tax).toFixed(4),
+      total: subtotal.sub(combinedDiscount).add(tax).toFixed(4),
     };
   }, [lines]);
 
@@ -246,6 +258,8 @@ export function QuotationFormPage() {
           Qty: l.Qty,
           UnitPrice: l.UnitPrice,
           Discount: l.Discount > 0 ? l.Discount : undefined,
+          DiscountAmount:
+            l.DiscountAmount > 0 ? l.DiscountAmount : undefined,
           TaxRate: l.TaxRate ?? undefined,
           Notes: l.Notes || undefined,
         })),
@@ -532,14 +546,17 @@ export function QuotationFormPage() {
                 label="Subtotal"
                 value={formatMoney(totals.subtotal)}
               />
-              {Number(totals.discount) > 0 && (
+              {Number(totals.flatDiscount) > 0 && (
                 <SummaryRow
-                  label="Discount"
-                  value={`− ${formatMoney(totals.discount)}`}
+                  label="Flat discounts"
+                  value={`− ${formatMoney(totals.flatDiscount)}`}
                 />
               )}
-              {Number(totals.tax) > 0 && (
-                <SummaryRow label="Tax" value={formatMoney(totals.tax)} />
+              {Number(totals.lineDiscount) > 0 && (
+                <SummaryRow
+                  label="Line discounts"
+                  value={`− ${formatMoney(totals.lineDiscount)}`}
+                />
               )}
               <Divider style={{ margin: '6px 0' }} />
               <Flex justify="space-between">

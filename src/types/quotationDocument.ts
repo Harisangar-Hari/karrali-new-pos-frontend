@@ -3,6 +3,9 @@ export interface QuotationDocumentItem {
   sku: string | null;
   quantity: number;
   unitPrice: number;
+  /** Flat discount per unit (LKR). */
+  flatDiscountAmount: number;
+  /** Line % discount (already includes invoice % if you ever add it). */
   discountPct: number;
   lineSubtotal: number;
   lineDiscount: number;
@@ -31,6 +34,9 @@ export interface QuotationDocumentData {
   items: QuotationDocumentItem[];
 
   subtotal: number;
+  /** Total flat discount applied across all lines (Qty × DiscountAmount). */
+  flatDiscountAmount: number;
+  /** Total line % discount applied across all lines. */
   discountAmount: number;
   taxAmount: number;
   total: number;

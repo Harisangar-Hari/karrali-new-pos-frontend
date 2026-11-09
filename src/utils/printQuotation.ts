@@ -17,12 +17,6 @@ const fmtDate = (iso: string | null | undefined): string => {
   });
 };
 
-/**
- * Status badge for the printed doc. DRAFT and SENT are internal
- * workflow states — the customer sees a clean professional quote.
- * Terminal states (ACCEPTED, REJECTED, etc.) are shown so accidental
- * reprints of old quotes are obvious.
- */
 function statusBadge(status: QuotationDocumentData['status']): string {
   if (status === 'DRAFT' || status === 'SENT') return '';
 
@@ -52,7 +46,6 @@ function escapeHtml(s: string): string {
 
 export interface BuildQuotationOptions {
   shop?: ShopInfo;
-  /** When true (default), the generated HTML auto-fires window.print(). */
   autoPrint?: boolean;
 }
 
@@ -73,10 +66,35 @@ export function buildQuotationHtml(
       const skuLine = item.sku
         ? `<div class="item-sku">SKU: ${escapeHtml(item.sku)}</div>`
         : '';
+
+      // Discount cell: show flat amount AND line % on stacked lines
+      // when both are present.
+      const hasFlat = item.flatDiscountAmount > 0;
+      const hasPct = item.discountPct > 0;
+      const discountParts: string[] = [];
+      if (hasFlat) {
+        discountParts.push(
+          `<div style="color:#16a34a;font-weight:700;">− LKR ${m(item.flatDiscountAmount)}</div>`,
+        );
+      }
+      if (hasPct) {
+        discountParts.push(
+          `<div style="color:#16a34a;font-weight:700;">− ${m(item.discountPct)}%</div>`,
+        );
+      }
       const discountCell =
-        item.discountPct > 0
-          ? `<span style="color:#16a34a;font-weight:700;">−${m(item.discountPct)}%</span>`
+        discountParts.length > 0
+          ? discountParts.join('')
           : '<span style="color:#9ca3af;">—</span>';
+
+      // Show the discounted line total when any discount applies; the raw
+      // subtotal is visible in the "Subtotal" column right next to it.
+      const hasDiscount = hasFlat || hasPct;
+      const lineTotalCell = hasDiscount
+        ? `<div style="color:#9ca3af;font-size:8pt;text-decoration:line-through;">${m(item.lineSubtotal)}</div>
+           <div style="font-weight:700;">${m(item.lineTotal)}</div>`
+        : m(item.lineTotal);
+
       return `
         <tr>
           <td class="num" style="color:#9ca3af;">${idx + 1}</td>
@@ -88,14 +106,16 @@ export function buildQuotationHtml(
           <td class="num">${m(item.unitPrice)}</td>
           <td class="num">${discountCell}</td>
           <td class="num">${m(item.lineSubtotal)}</td>
-          <td class="num total-col">${m(item.lineTotal)}</td>
+          <td class="num total-col">${lineTotalCell}</td>
         </tr>
       `;
     })
     .join('');
 
   // ── Summary ─────────────────────────────────────────────────
-  const hasDiscount = data.discountAmount > 0;
+  const hasFlat = data.flatDiscountAmount > 0;
+  const hasLinePct =
+    data.discountAmount - data.flatDiscountAmount > 0.0001;
   const hasTax = data.taxAmount > 0;
 
   const summaryRows = `
@@ -103,21 +123,26 @@ export function buildQuotationHtml(
       <span>Subtotal</span>
       <span>LKR ${m(data.subtotal)}</span>
     </div>
-    ${
-      hasDiscount
-        ? `<div class="summary-row" style="color:#16a34a;">
-             <span>Discount</span>
-             <span>− LKR ${m(data.discountAmount)}</span>
+    ${hasFlat
+      ? `<div class="summary-row" style="color:#16a34a;">
+             <span>Flat discount</span>
+             <span>− LKR ${m(data.flatDiscountAmount)}</span>
            </div>`
-        : ''
+      : ''
     }
-    ${
-      hasTax
-        ? `<div class="summary-row">
+    ${hasLinePct
+      ? `<div class="summary-row" style="color:#16a34a;">
+             <span>Line discount</span>
+             <span>− LKR ${m(data.discountAmount - data.flatDiscountAmount)}</span>
+           </div>`
+      : ''
+    }
+    ${hasTax
+      ? `<div class="summary-row">
              <span>Tax</span>
              <span>LKR ${m(data.taxAmount)}</span>
            </div>`
-        : ''
+      : ''
     }
     <div class="summary-row total">
       <span>TOTAL</span>
@@ -147,7 +172,6 @@ export function buildQuotationHtml(
     .map((t) => `<li>${t}</li>`)
     .join('');
 
-  // ── Header logo ─────────────────────────────────────────────
   const logoTag = logoB64
     ? `<img class="logo" src="${logoB64}" alt="Logo" />`
     : '';
@@ -203,7 +227,6 @@ export function buildQuotationHtml(
     .page { margin: 0; box-shadow: none; }
   }
 
-  /* ── Header ─────────────────────────────────────────────── */
   .header {
     display: flex;
     justify-content: space-between;
@@ -272,7 +295,6 @@ export function buildQuotationHtml(
     letter-spacing: 1px;
   }
 
-  /* ── Customer / Details row ─────────────────────────────── */
   .info-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -305,7 +327,6 @@ export function buildQuotationHtml(
     color: #6b7280;
   }
 
-  /* ── Items table ────────────────────────────────────────── */
   .items {
     width: 100%;
     border-collapse: collapse;
@@ -366,7 +387,6 @@ export function buildQuotationHtml(
     color: #111;
   }
 
-  /* ── Summary ────────────────────────────────────────────── */
   .summary {
     display: flex;
     justify-content: flex-end;
@@ -396,7 +416,6 @@ export function buildQuotationHtml(
     color: #0d9488;
   }
 
-  /* ── Notes ──────────────────────────────────────────────── */
   .notes {
     background: #f9fafb;
     border-left: 3px solid #0d9488;
@@ -415,7 +434,6 @@ export function buildQuotationHtml(
     font-weight: 700;
   }
 
-  /* ── Terms ──────────────────────────────────────────────── */
   .terms {
     border-top: 1px solid #e5e7eb;
     padding-top: 4mm;
@@ -454,7 +472,6 @@ export function buildQuotationHtml(
     font-weight: 900;
   }
 
-  /* ── Footer ─────────────────────────────────────────────── */
   .footer {
     text-align: center;
     border-top: 2px solid #0d9488;
@@ -503,30 +520,26 @@ export function buildQuotationHtml(
   <div class="info-row">
     <div class="info-block">
       <h3>Prepared for</h3>
-      ${
-        data.customerName
-          ? `<p><strong>${escapeHtml(data.customerName)}</strong></p>
-             ${
-               data.customerCode
-                 ? `<p class="subtle">${escapeHtml(data.customerCode)}</p>`
-                 : ''
-             }
-             ${
-               data.customerPhone
-                 ? `<p class="subtle">${escapeHtml(data.customerPhone)}</p>`
-                 : ''
-             }`
-          : `<p class="subtle">Walk-in customer</p>`
+      ${data.customerName
+      ? `<p><strong>${escapeHtml(data.customerName)}</strong></p>
+             ${data.customerCode
+        ? `<p class="subtle">${escapeHtml(data.customerCode)}</p>`
+        : ''
       }
+             ${data.customerPhone
+        ? `<p class="subtle">${escapeHtml(data.customerPhone)}</p>`
+        : ''
+      }`
+      : `<p class="subtle">Walk-in customer</p>`
+    }
     </div>
     <div class="info-block">
       <h3>Details</h3>
       <p><strong>Date:</strong> ${displayDate}</p>
-      ${
-        data.validUntil
-          ? `<p><strong>Valid until:</strong> ${displayValidUntil}</p>`
-          : ''
-      }
+      ${data.validUntil
+      ? `<p><strong>Valid until:</strong> ${displayValidUntil}</p>`
+      : ''
+    }
     </div>
   </div>
 
@@ -534,10 +547,10 @@ export function buildQuotationHtml(
     <thead>
       <tr>
         <th style="width: 4%;">#</th>
-        <th style="width: 38%;">Item</th>
+        <th style="width: 36%;">Item</th>
         <th class="num" style="width: 8%;">Qty</th>
-        <th class="num" style="width: 14%;">Unit price</th>
-        <th class="num" style="width: 12%;">Discount</th>
+        <th class="num" style="width: 13%;">Unit price</th>
+        <th class="num" style="width: 15%;">Discount</th>
         <th class="num" style="width: 12%;">Subtotal</th>
         <th class="num" style="width: 12%;">Line total</th>
       </tr>

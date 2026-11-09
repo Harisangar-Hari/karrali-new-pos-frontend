@@ -91,6 +91,14 @@ export function buildReceiptHtml(
     minute: '2-digit',
   });
 
+  function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
   // ── Items ────────────────────────────────────────────────────
   const rows = data.items
     .map((item, index) => {
@@ -99,22 +107,58 @@ export function buildReceiptHtml(
           ? `<tr><td colspan="2" class="item-separator">- - - - - - - - - - - - - - - -</td></tr>`
           : '';
 
-      const priceDisplay =
-        item.unitDiscount > 0
-          ? `<span style="font-size:12px;font-weight:bold;color:#000;">Rs ${m(
-              item.unitPrice,
-            )}</span> <span style="color:#000;font-size:12px;font-weight:bold;">(-${m(
-              item.unitDiscount,
-            )})</span>`
-          : `<span style="font-size:12px;font-weight:bold;color:#000;">Rs ${m(
-              item.unitPrice,
-            )}</span>`;
-
-      // Show how many units of this line have already been returned.
       const returnedNote =
         item.returnedQty && item.returnedQty > 0
           ? `<div style="font-size:10px;color:#dc2626;font-weight:900;margin-top:1px;">&#8627; ${item.returnedQty} returned</div>`
           : '';
+
+      const hasFlat = item.flatDiscount > 0;
+      const hasPct = item.unitDiscount > 0;
+
+      if (hasFlat) {
+        // Option C — expanded breakdown for lines with a flat discount
+        const afterFlatUnit = item.unitPrice - item.flatDiscount;
+        const lineSubtotal = afterFlatUnit * item.quantity;
+        const linePctDisc = hasPct
+          ? lineSubtotal * (item.unitDiscount / 100) * item.quantity
+          : 0;
+        return `
+          ${separator}
+          <tr>
+            <td colspan="2" class="item-name">${item.name}${returnedNote}</td>
+          </tr>
+          <tr>
+            <td class="qty">${item.quantity} x Rs ${m(item.unitPrice)}</td>
+            <td class="amount">${m(item.unitPrice * item.quantity)}</td>
+          </tr>
+          <tr>
+            <td class="qty" style="padding-left:12px;color:#16a34a;font-size:11px;">  &minus; Flat discount</td>
+            <td class="amount" style="color:#16a34a;font-size:11px;">&minus; ${m(item.flatDiscount * item.quantity)}</td>
+          </tr>
+          ${hasPct
+            ? `<tr>
+                   <td class="qty" style="padding-left:12px;color:#16a34a;font-size:11px;">  &minus; Line discount (${m(item.unitDiscount)}%)</td>
+                   <td class="amount" style="color:#16a34a;font-size:11px;">&minus; ${m(linePctDisc)}</td>
+                 </tr>`
+            : ''
+          }
+          <tr>
+            <td class="qty" style="padding-left:12px;font-weight:900;">  Line total</td>
+            <td class="amount" style="font-weight:900;">${m(item.lineTotal)}</td>
+          </tr>
+        `;
+      }
+
+      // Standard line — no flat discount
+      const priceDisplay = hasPct
+        ? `<span style="font-size:12px;font-weight:bold;color:#000;">Rs ${m(
+          item.unitPrice,
+        )}</span> <span style="color:#000;font-size:12px;font-weight:bold;">(-${m(
+          item.unitDiscount,
+        )}%)</span>`
+        : `<span style="font-size:12px;font-weight:bold;color:#000;">Rs ${m(
+          item.unitPrice,
+        )}</span>`;
 
       return `
         ${separator}
@@ -164,76 +208,67 @@ export function buildReceiptHtml(
       <td class="sum-label">Subtotal</td>
       <td class="sum-amount">${m(data.subtotal)}</td>
     </tr>
-    ${
-      showDiscount
-        ? `<tr class="discount-row">
+    ${showDiscount
+      ? `<tr class="discount-row">
              <td class="sum-label">Discount</td>
              <td class="sum-amount">-${m(data.discountAmount)}</td>
            </tr>`
-        : ''
+      : ''
     }
-    ${
-      showTax
-        ? `<tr class="subtotal-row">
+    ${showTax
+      ? `<tr class="subtotal-row">
              <td class="sum-label">Tax</td>
              <td class="sum-amount">${m(data.taxAmount)}</td>
            </tr>`
-        : ''
+      : ''
     }
-    ${
-      showLoyalty
-        ? `<tr class="discount-row">
+    ${showLoyalty
+      ? `<tr class="discount-row">
              <td class="sum-label">Loyalty</td>
              <td class="sum-amount">-${m(data.loyaltyDiscount)}</td>
            </tr>`
-        : ''
+      : ''
     }
     <tr class="total-row">
       <td class="sum-label">TOTAL</td>
       <td class="sum-amount">${m(data.total)}</td>
     </tr>
-    ${
-      showCash
-        ? `<tr><td class="sum-label">Cash</td><td class="sum-amount">${m(
-            data.cashAmount,
-          )}</td></tr>`
-        : ''
+    ${showCash
+      ? `<tr><td class="sum-label">Cash</td><td class="sum-amount">${m(
+        data.cashAmount,
+      )}</td></tr>`
+      : ''
     }
-    ${
-      data.cashTendered !== undefined &&
+    ${data.cashTendered !== undefined &&
       data.cashTendered > data.cashAmount + 0.0001
-        ? `<tr><td class="sum-label">Tendered</td><td class="sum-amount">${m(
-            data.cashTendered,
-          )}</td></tr>`
-        : ''
+      ? `<tr><td class="sum-label">Tendered</td><td class="sum-amount">${m(
+        data.cashTendered,
+      )}</td></tr>`
+      : ''
     }
-    ${
-      data.changeDue !== undefined && data.changeDue > 0.0001
-        ? `<tr class="discount-row"><td class="sum-label">Change</td><td class="sum-amount">${m(
-            data.changeDue,
-          )}</td></tr>`
-        : ''
+    ${data.changeDue !== undefined && data.changeDue > 0.0001
+      ? `<tr class="discount-row"><td class="sum-label">Change</td><td class="sum-amount">${m(
+        data.changeDue,
+      )}</td></tr>`
+      : ''
     }
-    ${
-      showCard
-        ? `<tr><td class="sum-label">Card</td><td class="sum-amount">${m(
-            data.cardAmount,
-          )}</td></tr>`
-        : ''
+    ${showCard
+      ? `<tr><td class="sum-label">Card</td><td class="sum-amount">${m(
+        data.cardAmount,
+      )}</td></tr>`
+      : ''
     }
-    ${
-      showCheque
-        ? `<tr><td class="sum-label">Cheque</td><td class="sum-amount">${m(
-            data.chequeAmount,
-          )}</td></tr>`
-        : ''
+    ${showCheque
+      ? `<tr><td class="sum-label">Cheque</td><td class="sum-amount">${m(
+        data.chequeAmount,
+      )}</td></tr>`
+      : ''
     }
-    ${
-      showCredit
-        ? `<tr class="discount-row"><td class="sum-label">Credit (owed)</td><td class="sum-amount">${m(
-            data.creditAmount,
-          )}</td></tr>`
-        : ''
+    ${showCredit
+      ? `<tr class="discount-row"><td class="sum-label">Credit (owed)</td><td class="sum-amount">${m(
+        data.creditAmount,
+      )}</td></tr>`
+      : ''
     }
     ${refundSummaryRows}
   `;
@@ -246,15 +281,15 @@ export function buildReceiptHtml(
       <table>
         <tbody>
           ${data.returns!
-            .map((r) => {
-              const d = new Date(r.createdAt).toLocaleDateString('en-GB', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-              });
-              const methodLabel =
-                r.refundMethod === 'CASH' ? 'Cash refund' : 'Store credit';
-              return `
+      .map((r) => {
+        const d = new Date(r.createdAt).toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        });
+        const methodLabel =
+          r.refundMethod === 'CASH' ? 'Cash refund' : 'Store credit';
+        return `
                 <tr>
                   <td style="font-size:11px;font-weight:700;padding:2px 0;color:#000;">
                     ${r.code}
@@ -268,8 +303,8 @@ export function buildReceiptHtml(
                   </td>
                 </tr>
               `;
-            })
-            .join('')}
+      })
+      .join('')}
         </tbody>
       </table>
     `
@@ -481,15 +516,10 @@ export function buildReceiptHtml(
     <div class="meta-row"><span class="meta-label">Invoice:</span><span class="meta-value">${data.invoiceNumber}</span></div>
     <div class="meta-row"><span class="meta-label">Date:</span><span class="meta-value">${displayDate}</span></div>
     <div class="meta-row"><span class="meta-label">Cashier:</span><span class="meta-value">${data.cashier}</span></div>
-    ${
-      data.customerName
-        ? `<div class="meta-row"><span class="meta-label">Customer:</span><span class="meta-value">${data.customerName}</span></div>`
-        : ''
-    }
-    ${
-      data.customerPhone
-        ? `<div class="meta-row"><span class="meta-label">Phone:</span><span class="meta-value">${data.customerPhone}</span></div>`
-        : ''
+     <div class="meta-row"><span class="meta-label">Customer:</span><span class="meta-value">${data.customerName ? escapeHtml(data.customerName) : 'Walk-in customer'}</span></div>
+    ${data.customerPhone
+      ? `<div class="meta-row"><span class="meta-label">Phone:</span><span class="meta-value">${escapeHtml(data.customerPhone)}</span></div>`
+      : ''
     }
     <div class="meta-row"><span class="meta-label">Terminal:</span><span class="meta-value">${data.terminalName}</span></div>
     <div class="meta-row"><span class="meta-label">Payment:</span><span class="meta-value">${paymentModeLabel(

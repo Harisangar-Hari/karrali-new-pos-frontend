@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Drawer,
-  
   Input,
   InputNumber,
   Select,
@@ -15,8 +14,6 @@ import {
   Skeleton,
   Table,
   Empty,
-  
-  
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { Controller, useForm } from 'react-hook-form';
@@ -41,7 +38,7 @@ import {
 import { generateEan13 } from '@/utils/barcode';
 import { printBarcodeLabels } from '@/utils/printBarcode';
 import { getErrorMessage } from '@/lib/api';
-import { formatQty } from '@/lib/format';
+import { formatQty, formatMoney } from '@/lib/format';
 import type {
   ProductDetail,
   ProductListRow,
@@ -50,30 +47,42 @@ import type {
 
 const { useBreakpoint } = Grid;
 
-const productSchema = z.object({
-  Name: z.string().min(1, 'Required').max(200),
-  SKU: z.string().max(64).optional().or(z.literal('')),
-  Barcode: z.string().max(64).optional().or(z.literal('')),
-  Description: z.string().max(2000).optional().or(z.literal('')),
-  Unit: z.string().max(20).optional().or(z.literal('')),
-  Price: z.number({ required_error: 'Required' }).min(0),
-  CostPrice: z.number({ required_error: 'Required' }).min(0),
-  Discount: z.number().min(0).max(100).optional(),
-  TaxRate: z.number().min(0).max(100).nullable().optional(),
-  ReorderLevel: z.number().int().min(0).optional(),
-  WarrantyMonths: z.number().int().min(0).optional(),
-  ImageUrl: z
-    .string()
-    .url('Must be a valid URL')
-    .max(500)
-    .optional()
-    .or(z.literal('')),
-  IsActive: z.boolean(),
-  CategoryId: z.string().uuid('Pick a category'),
-  BrandId: z.string().uuid().nullable().optional().or(z.literal('')),
-  InitialQty: z.number().int().min(0).optional(),
-  InitialWarehouseId: z.string().uuid().optional().or(z.literal('')),
-});
+const productSchema = z
+  .object({
+    Name: z.string().min(1, 'Required').max(200),
+    SKU: z.string().max(64).optional().or(z.literal('')),
+    Barcode: z.string().max(64).optional().or(z.literal('')),
+    Description: z.string().max(2000).optional().or(z.literal('')),
+    Unit: z.string().max(20).optional().or(z.literal('')),
+    Price: z.number({ required_error: 'Required' }).min(0),
+    CostPrice: z.number({ required_error: 'Required' }).min(0),
+    Discount: z.number().min(0).max(100).optional(),
+    DiscountAmount: z.number().min(0).optional(),
+    TaxRate: z.number().min(0).max(100).nullable().optional(),
+    ReorderLevel: z.number().int().min(0).optional(),
+    WarrantyMonths: z.number().int().min(0).optional(),
+    ImageUrl: z
+      .string()
+      .url('Must be a valid URL')
+      .max(500)
+      .optional()
+      .or(z.literal('')),
+    IsActive: z.boolean(),
+    CategoryId: z.string().uuid('Pick a category'),
+    BrandId: z.string().uuid().nullable().optional().or(z.literal('')),
+    InitialQty: z.number().int().min(0).optional(),
+    InitialWarehouseId: z.string().uuid().optional().or(z.literal('')),
+  })
+  .superRefine((values, ctx) => {
+    const flat = values.DiscountAmount ?? 0;
+    if (flat > 0 && flat > values.Price) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Discount amount cannot exceed price (LKR ${values.Price.toFixed(2)})`,
+        path: ['DiscountAmount'],
+      });
+    }
+  });
 
 type ProductForm = z.infer<typeof productSchema>;
 
@@ -109,6 +118,7 @@ function buildDefaults(
       Price: 0,
       CostPrice: 0,
       Discount: 0,
+      DiscountAmount: 0,
       TaxRate: null,
       ReorderLevel: 0,
       WarrantyMonths: 0,
@@ -129,6 +139,7 @@ function buildDefaults(
     Price: Number(product.Price),
     CostPrice: Number(product.CostPrice),
     Discount: Number(product.Discount),
+    DiscountAmount: Number(product.DiscountAmount ?? 0),
     TaxRate: product.TaxRate === null ? null : Number(product.TaxRate),
     ReorderLevel: product.ReorderLevel,
     WarrantyMonths: product.WarrantyMonths,
@@ -167,6 +178,7 @@ export function ProductFormDrawer({ open, product, onClose }: Props) {
     handleSubmit,
     reset,
     getValues,
+    watch,
     formState: { isSubmitting },
   } = useForm<ProductForm>({
     resolver: zodResolver(productSchema),
@@ -180,6 +192,17 @@ export function ProductFormDrawer({ open, product, onClose }: Props) {
 
   const submitting =
     isSubmitting || createMutation.isPending || updateMutation.isPending;
+
+  const watchedPrice = watch('Price') ?? 0;
+  const watchedDiscountAmount = watch('DiscountAmount') ?? 0;
+  const watchedDiscountPct = watch('Discount') ?? 0;
+
+  // Live effective-price preview shown under the discount fields
+  const effectivePrice = useMemo(() => {
+    const afterFlat = Math.max(0, watchedPrice - watchedDiscountAmount);
+    const afterPct = afterFlat * (1 - watchedDiscountPct / 100);
+    return afterPct;
+  }, [watchedPrice, watchedDiscountAmount, watchedDiscountPct]);
 
   const handlePrintClick = () => {
     const barcode = getValues('Barcode');
@@ -215,6 +238,7 @@ export function ProductFormDrawer({ open, product, onClose }: Props) {
       ImageUrl: values.ImageUrl || undefined,
       BrandId: values.BrandId || null,
       TaxRate: values.TaxRate ?? null,
+      DiscountAmount: values.DiscountAmount ?? 0,
     };
 
     try {
@@ -464,7 +488,7 @@ export function ProductFormDrawer({ open, product, onClose }: Props) {
           </Field>
 
           <Divider orientation="left" plain>
-            Pricing
+            Pricing & discount
           </Divider>
 
           <Flex gap={12} wrap="wrap">
@@ -482,6 +506,7 @@ export function ProductFormDrawer({ open, product, onClose }: Props) {
                         precision={4}
                         step={0.01}
                         style={{ width: '100%' }}
+                        addonBefore="LKR"
                         status={fieldState.error ? 'error' : undefined}
                       />
                       <div style={ERR_STYLE}>
@@ -506,6 +531,7 @@ export function ProductFormDrawer({ open, product, onClose }: Props) {
                         precision={4}
                         step={0.01}
                         style={{ width: '100%' }}
+                        addonBefore="LKR"
                         status={fieldState.error ? 'error' : undefined}
                       />
                       <div style={ERR_STYLE}>
@@ -520,6 +546,40 @@ export function ProductFormDrawer({ open, product, onClose }: Props) {
 
           <Flex gap={12} wrap="wrap">
             <div style={{ flex: 1, minWidth: 140 }}>
+              <Field label="Discount amount (LKR)">
+                <Controller
+                  name="DiscountAmount"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <>
+                      <InputNumber
+                        value={field.value ?? 0}
+                        onChange={(v) => field.onChange(v ?? 0)}
+                        min={0}
+                        max={watchedPrice}
+                        precision={4}
+                        step={0.01}
+                        style={{ width: '100%' }}
+                        addonBefore="LKR"
+                        placeholder="0.00"
+                        status={fieldState.error ? 'error' : undefined}
+                      />
+                      <div style={ERR_STYLE}>
+                        {fieldState.error?.message ?? ''}
+                      </div>
+                      <Typography.Text
+                        type="secondary"
+                        style={{ fontSize: 11 }}
+                      >
+                        Flat amount off each unit. Applied before the %
+                        discount.
+                      </Typography.Text>
+                    </>
+                  )}
+                />
+              </Field>
+            </div>
+            <div style={{ flex: 1, minWidth: 140 }}>
               <Field label="Discount %">
                 <Controller
                   name="Discount"
@@ -533,32 +593,61 @@ export function ProductFormDrawer({ open, product, onClose }: Props) {
                       precision={2}
                       step={0.5}
                       style={{ width: '100%' }}
+                      addonAfter="%"
                     />
                   )}
                 />
-              </Field>
-            </div>
-            <div style={{ flex: 1, minWidth: 140 }}>
-              <Field label="Tax rate %">
-                <Controller
-                  name="TaxRate"
-                  control={control}
-                  render={({ field }) => (
-                    <InputNumber
-                      value={field.value ?? null}
-                      onChange={(v) => field.onChange(v ?? null)}
-                      min={0}
-                      max={100}
-                      precision={2}
-                      step={0.5}
-                      style={{ width: '100%' }}
-                      placeholder="No tax"
-                    />
-                  )}
-                />
+                <Typography.Text
+                  type="secondary"
+                  style={{ fontSize: 11 }}
+                >
+                  Applied on the post-flat-discount price.
+                </Typography.Text>
               </Field>
             </div>
           </Flex>
+
+          {watchedPrice > 0 && (
+            <Flex
+              justify="space-between"
+              align="center"
+              style={{
+                padding: '8px 12px',
+                background: '#f0fdfa',
+                border: '1px solid #99f6e4',
+                borderRadius: 6,
+                marginBottom: 4,
+              }}
+            >
+              <Typography.Text style={{ fontSize: 12 }}>
+                Effective selling price
+              </Typography.Text>
+              <Typography.Text strong style={{ color: '#0d9488' }}>
+                {formatMoney(effectivePrice.toFixed(4))}
+              </Typography.Text>
+            </Flex>
+          )}
+
+          <div style={{ marginTop: 12 }}>
+            <Field label="Tax rate %">
+              <Controller
+                name="TaxRate"
+                control={control}
+                render={({ field }) => (
+                  <InputNumber
+                    value={field.value ?? null}
+                    onChange={(v) => field.onChange(v ?? null)}
+                    min={0}
+                    max={100}
+                    precision={2}
+                    step={0.5}
+                    style={{ width: '100%' }}
+                    placeholder="No tax"
+                  />
+                )}
+              />
+            </Field>
+          </div>
 
           <Divider orientation="left" plain>
             Stock & Warranty

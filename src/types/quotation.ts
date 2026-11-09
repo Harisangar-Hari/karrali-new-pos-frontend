@@ -31,6 +31,7 @@ export interface QuotationItemRow {
   Qty: number;
   UnitPrice: string;
   Discount: string;
+  DiscountAmount: string;
   TaxRate: string | null;
   LineSubtotal: string;
   LineDiscount: string;
@@ -79,6 +80,7 @@ export interface QuotationItemInput {
   Qty: number;
   UnitPrice: number;
   Discount?: number;
+  DiscountAmount?: number;
   TaxRate?: number;
   Notes?: string;
 }
