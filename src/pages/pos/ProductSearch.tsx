@@ -26,6 +26,7 @@ import {
 import { formatMoney } from '@/lib/format';
 import { usePosCartStore } from '@/stores/posCartStore';
 import type { ProductListRow } from '@/types/product';
+import { listProducts } from '@/api/products';
 
 const { useBreakpoint } = Grid;
 
@@ -110,27 +111,41 @@ export function ProductSearch({ warehouseId, warehouseName }: Props) {
     inputRef.current?.focus();
   };
 
-  const handleEnter = () => {
+  const handleEnter = async () => {
     const typed = input.trim();
     if (!typed) return;
 
-    // Barcode-first: exact match on Barcode field.
+    // Try exact match in current results first
     const exactBarcode = visibleResults.find((p) => p.Barcode === typed);
     if (exactBarcode) {
       handleAdd(exactBarcode);
       return;
     }
 
-    // Exact match on SKU as a secondary fallback (some shops scan SKU).
     const exactSku = visibleResults.find((p) => p.SKU === typed);
     if (exactSku) {
       handleAdd(exactSku);
       return;
     }
 
-    // Fall back to top result only if nothing matched exactly.
-    const top = visibleResults[0];
-    if (top) handleAdd(top);
+    // Nothing matched — do a fresh, non-debounced lookup with the exact
+    // barcode. This is the case that fires when a scan arrives before the
+    // 250ms debounce has completed.
+    setSearch(typed);
+    // Wait for the query to fire and settle
+    const fresh = await listProducts({
+      search: typed,
+      limit: 5,
+      IsActive: true,
+    });
+    const exact = fresh.data.find((p) => p.Barcode === typed);
+    if (exact) {
+      handleAdd(exact);
+      return;
+    }
+
+    // Genuinely no exact barcode/SKU match — do NOT fall through to top
+    // result. For a scan, that's almost always the wrong product.
   };
 
   const showEmpty =
