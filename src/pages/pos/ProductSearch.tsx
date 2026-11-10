@@ -111,6 +111,24 @@ export function ProductSearch({ warehouseId, warehouseName }: Props) {
   };
 
   const handleEnter = () => {
+    const typed = input.trim();
+    if (!typed) return;
+
+    // Barcode-first: exact match on Barcode field.
+    const exactBarcode = visibleResults.find((p) => p.Barcode === typed);
+    if (exactBarcode) {
+      handleAdd(exactBarcode);
+      return;
+    }
+
+    // Exact match on SKU as a secondary fallback (some shops scan SKU).
+    const exactSku = visibleResults.find((p) => p.SKU === typed);
+    if (exactSku) {
+      handleAdd(exactSku);
+      return;
+    }
+
+    // Fall back to top result only if nothing matched exactly.
     const top = visibleResults[0];
     if (top) handleAdd(top);
   };
