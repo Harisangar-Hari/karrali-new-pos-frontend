@@ -45,6 +45,7 @@ export function CartPanel({
   const lines = usePosCartStore((s) => s.lines);
   const updateQty = usePosCartStore((s) => s.updateQty);
   const updateDiscount = usePosCartStore((s) => s.updateDiscount);
+  const updateDiscountAmount = usePosCartStore((s) => s.updateDiscountAmount);
   const removeLine = usePosCartStore((s) => s.removeLine);
   const notes = usePosCartStore((s) => s.notes);
   const setNotes = usePosCartStore((s) => s.setNotes);
@@ -314,47 +315,84 @@ export function CartPanel({
                   )}
 
                   {canDiscount && (
-                    <Flex align="center" gap={6} style={{ marginTop: 8 }}>
-                      <Tooltip
-                        title={
-                          lineDiscCap > 0
-                            ? `Max ${lineDiscCap}% — cannot go below cost price (${formatMoney(line.CostPrice)})`
-                            : 'No headroom with current discounts'
-                        }
-                      >
+                    <Flex vertical gap={6} style={{ marginTop: 8 }}>
+                      {line.MaxDiscountAmount > 0 && (
+                        <Flex align="center" gap={6}>
+                          <Tooltip
+                            title={`Max ${formatMoney(line.MaxDiscountAmount)} per unit — cannot exceed the product discount`}
+                          >
+                            <Typography.Text
+                              type="secondary"
+                              style={{ fontSize: 11 }}
+                            >
+                              Flat disc.
+                            </Typography.Text>
+                          </Tooltip>
+                          <InputNumber
+                            value={line.DiscountAmount}
+                            onChange={(v) =>
+                              updateDiscountAmount(
+                                line.ProductId,
+                                Number(v ?? 0),
+                              )
+                            }
+                            min={0}
+                            max={line.MaxDiscountAmount}
+                            precision={2}
+                            size="small"
+                            style={{ width: 90 }}
+                            addonAfter="LKR"
+                          />
+                          <Typography.Text
+                            type="secondary"
+                            style={{ fontSize: 10 }}
+                          >
+                            max {formatMoney(line.MaxDiscountAmount)}
+                          </Typography.Text>
+                        </Flex>
+                      )}
+                      <Flex align="center" gap={6}>
+                        <Tooltip
+                          title={
+                            lineDiscCap > 0
+                              ? `Max ${lineDiscCap}% — cannot go below cost price (${formatMoney(line.CostPrice)})`
+                              : 'No headroom with current discounts'
+                          }
+                        >
+                          <Typography.Text
+                            type="secondary"
+                            style={{ fontSize: 11 }}
+                          >
+                            Line disc. %
+                          </Typography.Text>
+                        </Tooltip>
+                        <InputNumber
+                          value={line.Discount}
+                          onChange={(v) => {
+                            const next = Number(v ?? 0);
+                            if (next > lineDiscCap) {
+                              updateDiscount(line.ProductId, lineDiscCap);
+                            } else {
+                              updateDiscount(line.ProductId, next);
+                            }
+                          }}
+                          min={0}
+                          max={lineDiscCap}
+                          precision={2}
+                          size="small"
+                          style={{
+                            width: 80,
+                            borderColor: belowCost ? '#dc2626' : undefined,
+                          }}
+                          status={belowCost ? 'error' : undefined}
+                        />
                         <Typography.Text
                           type="secondary"
-                          style={{ fontSize: 11 }}
+                          style={{ fontSize: 10 }}
                         >
-                          Line disc. %
+                          max {lineDiscCap}%
                         </Typography.Text>
-                      </Tooltip>
-                      <InputNumber
-                        value={line.Discount}
-                        onChange={(v) => {
-                          const next = Number(v ?? 0);
-                          if (next > lineDiscCap) {
-                            updateDiscount(line.ProductId, lineDiscCap);
-                          } else {
-                            updateDiscount(line.ProductId, next);
-                          }
-                        }}
-                        min={0}
-                        max={lineDiscCap}
-                        precision={2}
-                        size="small"
-                        style={{
-                          width: 80,
-                          borderColor: belowCost ? '#dc2626' : undefined,
-                        }}
-                        status={belowCost ? 'error' : undefined}
-                      />
-                      <Typography.Text
-                        type="secondary"
-                        style={{ fontSize: 10 }}
-                      >
-                        max {lineDiscCap}%
-                      </Typography.Text>
+                      </Flex>
                     </Flex>
                   )}
                 </div>

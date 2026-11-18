@@ -13,6 +13,8 @@ export interface CartLine {
   Discount: number;
   /** Flat discount amount per unit (LKR), copied from the product at add-time. */
   DiscountAmount: number;
+  /** Product flat discount at add-time; the cashier cannot exceed this amount. */
+  MaxDiscountAmount: number;
   /** Tax rate %, null = no tax. */
   TaxRate: number | null;
   Notes?: string;
@@ -24,14 +26,19 @@ interface CartState {
   notes: string;
   invoiceDiscount: number;
   addLine: (
-    line: Omit<CartLine, 'Qty' | 'Discount' | 'DiscountAmount'> & {
+    line: Omit<
+      CartLine,
+      'Qty' | 'Discount' | 'DiscountAmount' | 'MaxDiscountAmount'
+    > & {
       Qty?: number;
       Discount?: number;
       DiscountAmount?: number;
+      MaxDiscountAmount?: number;
     },
   ) => void;
   updateQty: (productId: string, qty: number) => void;
   updateDiscount: (productId: string, discount: number) => void;
+  updateDiscountAmount: (productId: string, amount: number) => void;
   removeLine: (productId: string) => void;
   setCustomer: (id: string | null) => void;
   setNotes: (notes: string) => void;
@@ -69,6 +76,8 @@ export const usePosCartStore = create<CartState>((set) => ({
             Qty: line.Qty ?? 1,
             Discount: line.Discount ?? 0,
             DiscountAmount: line.DiscountAmount ?? 0,
+            MaxDiscountAmount:
+              line.MaxDiscountAmount ?? line.DiscountAmount ?? 0,
             TaxRate: line.TaxRate,
             Notes: line.Notes,
           },
@@ -91,6 +100,21 @@ export const usePosCartStore = create<CartState>((set) => ({
       lines: state.lines.map((l) =>
         l.ProductId === productId
           ? { ...l, Discount: Math.max(0, Math.min(100, discount)) }
+          : l,
+      ),
+    })),
+
+  updateDiscountAmount: (productId, amount) =>
+    set((state) => ({
+      lines: state.lines.map((l) =>
+        l.ProductId === productId
+          ? {
+              ...l,
+              DiscountAmount: Math.max(
+                0,
+                Math.min(l.MaxDiscountAmount, amount),
+              ),
+            }
           : l,
       ),
     })),
